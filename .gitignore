@@ -1,0 +1,10 @@
+result/output_0.tar.gz
+result/output_2020.tar.gz
+result/output_2050.tar.gz
+result/output_future_2030.tar.gz
+result/output_future_2040.tar.gz
+result/output_future_2050.tar.gz
+
+.mcp.json
+
+.claude
