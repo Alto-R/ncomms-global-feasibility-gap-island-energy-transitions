@@ -84,7 +84,7 @@ python -c "import gurobipy as gp; print(gp.gurobi.version())"
 - `wind_2020_uas.nc`: Eastward wind (-8 to 12 m/s)
 - `wind_2020_vas.nc`: Northward wind (-6 to 10 m/s)
 
-**Runtime**: ~1- seconds
+**Runtime**: ~5 seconds
 
 ### **4.2 disaster_free_test.py**
 
