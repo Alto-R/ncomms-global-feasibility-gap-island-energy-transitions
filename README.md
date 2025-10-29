@@ -2,6 +2,14 @@
 
 A comprehensive optimization framework for designing resilient island energy systems using Mixed Integer Linear Programming (MILP). This model integrates multi-energy systems with advanced reliability modeling and climate scenario analysis to support sustainable energy planning for remote islands.
 
+*For Chinese documentation, see [README_cn.md](README_cn.md)*
+
+---
+
+**📋 NOTE**: Quick testing instructions with synthetic data (no multi-GB downloads required) are available in [`test/`](test/) directory. See [`test/test.md`](test/test.md) for running the model with sample data in ~5 minutes.
+
+---
+
 ## 🌊 Overview
 
 This project implements a sophisticated energy system optimization model specifically designed for island communities facing climate change challenges. The system optimizes the design and operation of integrated electricity-heat-cold energy networks while ensuring high reliability under extreme weather conditions.
@@ -166,7 +174,7 @@ min: CAPEX_annualized + OPEX_fixed + LNG_costs + Curtailment_penalties + Load_sh
 - Power limits: Charge/discharge ≤ 25% of storage capacity
 
 **LNG Procurement:**
-- Periodic purchasing every 14 days (112 time steps @ 3-hour resolution)
+- Periodic purchasing every 14 days (112 time steps at 3-hour resolution)
 - Disaster-sensitive: No procurement during extreme weather periods
 - Storage balance with consumption for CHP and gasification
 
@@ -248,7 +256,3 @@ project_root/
 This project is developed for academic research purposes. When using this model, please cite relevant publications and acknowledge the comprehensive climate and reliability modeling approach.
 
 **Technical Contact**: For model implementation questions or collaboration opportunities.
-
----
-
-*For Chinese documentation, see [README_cn.md](README_cn.md)*
