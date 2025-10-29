@@ -6,13 +6,9 @@ A comprehensive optimization framework for designing resilient island energy sys
 
 ---
 
-**📋 NOTE**: Quick testing instructions with synthetic data (no multi-GB downloads required) are available in [`test/`](test/) directory. See [`test/test.md`](test/test.md) for running the model with sample data in ~5 minutes.
-
----
-
 ## 🌊 Overview
 
-This project implements a sophisticated energy system optimization model specifically designed for island communities facing climate change challenges. The system optimizes the design and operation of integrated electricity-heat-cold energy networks while ensuring high reliability under extreme weather conditions.
+This project implements a sophisticated energy system optimization model (MILP) specifically designed for island communities facing climate change challenges. The system optimizes the design and operation of integrated electricity-heat-cold energy networks while ensuring high reliability under extreme weather conditions.
 
 ### Key Features
 - **Multi-Energy Integration**: Simultaneous optimization of electricity, heating, and cooling systems
@@ -65,7 +61,8 @@ The model includes five distinct scenarios representing different climate condit
 
 | Scenario File | Climate Data | Technology Costs | Purpose | Output Directory |
 |---------------|--------------|------------------|---------|------------------|
-| `disaster_2020.py` | 2020 baseline | 2020 current | Historical baseline performance | `output_2020/` |
+| `disaster_free.py` | Ideal (No disaster) | 2020 current | Current ideal performance | `output_0/` |
+| `disaster_2020.py` | 2020 baseline | 2020 current | Current baseline performance | `output_2020/` |
 | `disaster_2050.py` | 2050 projections | 2020 current | Climate impact with current technology | `output_2050/` |
 | `disaster_future_2030.py` | 2050 projections | 2030 projected | Early technology adoption benefits | `output_future_2030/` |
 | `disaster_future_2040.py` | 2050 projections | 2040 projected | Mid-term technology maturation | `output_future_2040/` |
@@ -84,61 +81,246 @@ The model incorporates realistic cost projections for key technologies:
 
 **Fixed Costs:** Wind, solar, LNG, and other mature technologies maintain constant costs across scenarios.
 
-## 🚀 Getting Started
+## 📋 System Requirements
 
-### Prerequisites
+**Operating Systems:**
+
+- Windows 10/11
+- Linux (Ubuntu 20.04+, CentOS 8+)
+- macOS 11+ (Big Sur or later)
+
+**Python:** >= 3.9 (tested on 3.9, 3.10, 3.11)
 
 **Required Python Packages:**
+
+*see requirements.txt for details*
+- pandas >= 1.3.0
+- numpy >= 1.21.0
+- xarray >= 0.19.0
+- netCDF4 >= 1.5.7
+- gurobipy >= 9.5.0
+- scipy >= 1.7.0
+- geopy >= 2.2.0
+- pvlib >= 0.9.0
+- timezonefinder >= 5.2.0
+- scikit-learn >= 0.24.0
+- openpyxl >= 3.0.9
+
+**Critical Dependency:**
+
+- Gurobi Optimizer 11.0+ with valid license
+- Download: <https://www.gurobi.com/downloads/>
+- Academic licenses: <https://www.gurobi.com/academia/academic-program-and-licenses/>
+
+**Hardware Requirements:**
+
+- **Recommended**: 32 GB RAM, 16+ core CPU
+- **Storage**: 70+ GB for full CMIP6 data
+
+**Tested Platforms:**
+
+- Windows 11 with Python 3.9, 3.10, 3.11
+- Ubuntu 22.04 with Python 3.9, 3.10, 3.11
+- macOS 14 with Python 3.9, 3.10, 3.11
+
+## 🔧 Installation
+
+### Step 1: Install Python Dependencies
+
 ```bash
-pip install pandas numpy xarray gurobipy scipy geopy pvlib timezonefinder scikit-learn
+pip install -r requirements.txt
+or
+pip install pandas numpy xarray netCDF4 scipy geopy pvlib timezonefinder scikit-learn openpyxl gurobipy
 ```
 
-**System Requirements:**
-- Gurobi Optimizer with valid license
-- Minimum 16GB RAM (32GB+ recommended for batch processing)
-- Python 3.8+
+### Step 2: Configure Gurobi License
 
-### Input Data Requirements
+```bash
+# Obtain license key from https://www.gurobi.com
+grbgetkey YOUR-LICENSE-KEY
+
+# Verify installation
+python -c "import gurobipy as gp; print(gp.gurobi.version())"
+```
+
+**Estimated installation time**: 5-10 minutes on a standard desktop computer
+
+**Optional: Virtual Environment** (recommended)
+
+```bash
+# Using conda
+conda create -n island_env python=3.11
+conda activate island_env
+
+# Or using venv
+python -m venv island_env
+source island_env/bin/activate  # Windows: island_env\Scripts\activate
+```
+
+## 🎯 Quick Start Demo
+
+### Demo with Synthetic Data
+
+For quick testing without downloading large CMIP6 datasets, we provide synthetic climate data generation.
+
+**Location**: All demo files are in the [`test/`](test/) directory. See [`test/test.md`](test/test.md) for detailed instructions.
+
+### Running the Demo
+
+**Step 1: Generate Sample Climate Data** (~30 seconds)
+
+```bash
+cd test
+python create_sample_data.py
+```
+
+This creates 4 NetCDF files (~2 MB total).
+
+**Step 2: Run Ideal Scenario Test** (~1 minutes)
+
+```bash
+python disaster_free_test.py --island_lat 24.455253 --island_lon 122.988732 --pop 500
+```
+
+**Step 3: Run Baseline Scenario Test** (~2 minutes)
+
+```bash
+python disaster_2020_test.py --island_lat 24.455253 --island_lon 122.988732 --pop 500
+```
+
+### Expected Demo Output
+
+Output files are generated in `test/output_sample/`:
+
+1. **`*_best_cost_*.csv`** (8 rows): System cost breakdown
+   - Annualized investment, LNG costs, O&M, operational penalties
+   - Expected total: $100k-$500k for 500 population
+
+2. **`*_capacity_*.csv`** (14 rows): Optimal technology capacities
+   - Renewable generation (WT, PV, WEC)
+   - Energy conversion systems (CHP, EB, AC, PEM, FC, LNGV)
+   - Storage systems (ESS, TES, CES, H2S)
+
+3. **`*_results_*.csv`** (2,920 rows): Detailed operational data
+   - Hourly power generation, storage states, energy flows
+   - Supply-demand balances, load shedding events
+
+### Demo Run Time
+
+- **Total**: ~3 minutes (depending on CPU cores)
+- **Tested on**: Intel i9-14900HX (24 cores), 16 GB RAM, Windows 11
+
+See [`test/test.md`](test/test.md) for details.
+
+**Note on Full-Scale Research**: The complete research results published in the manuscript were computed on a Linux-based high-performance computing (HPC) cluster with significantly more computational resources, enabling efficient computation of thousands of islands across multiple climate scenarios.
+
+
+
+## 📖 Usage Instructions
+
+### Data Directory Structure
 
 ```
 project_root/
-├── demand/                         # Hourly demand profiles
-│   ├── demand_{lat}_{lon}.csv      # Heating/cooling demands
-│   ├── pv_{lat}_{lon}.csv          # Solar potential
+├── demand/                         # Energy demand profiles
+│   ├── demand_{lat}_{lon}.csv      # Hourly heating/cooling
+│   ├── pv_{lat}_{lon}.csv          # Solar potential 
 │   └── wt_{lat}_{lon}.csv          # Wind potential
-├── CMIP6/                          # Climate model data
-│   ├── MRI_2020_uas/              # 2020 u-wind component
-│   ├── MRI_2020_vas/              # 2020 v-wind component  
-│   ├── MRI_2050_uas/              # 2050 u-wind projections
-│   └── MRI_2050_vas/              # 2050 v-wind projections
+├── CMIP6/                          # Climate model projections
+│   ├── MRI_2020_uas/              # U-wind component (NetCDF)
+│   ├── MRI_2020_vas/              # V-wind component (NetCDF)
+│   ├── MRI_2050_uas/              # Future projections
+│   └── MRI_2050_vas/              # Future projections
 ├── wave/                           # Wave energy data
-│   ├── wave_2020.nc               # 2020 wave power density
-│   ├── waveheight_2020.nc         # 2020 significant wave heights
-│   ├── wave_2050.nc               # 2050 wave projections
-│   └── waveheight_2050.nc         # 2050 wave height projections
+│   ├── wave_2020.nc               # Wave power density (kW/m)
+│   ├── waveheight_2020.nc         # Significant wave height (m)
+│   ├── wave_2050.nc               # Future wave projections
+│   └── waveheight_2050.nc         # Future wave height
 └── LNG/
-    └── LNG_Terminals.xlsx         # Global LNG terminal locations
+    └── LNG_Terminals.xlsx         # Global LNG terminal database
 ```
 
-### Single Island Execution
+**Data Format Requirements:**
+
+- **Demand files**: CSV with timestamp index, columns: heating_demand, cooling_demand
+- **Renewable potential**: CSV with timestamp index, column: electricity
+- **Climate data**: NetCDF4 format, 3-hour temporal resolution, WGS84 coordinates
+- **CMIP6 data access**: Download from ESGF portals
+
+### Single Island Optimization
 
 ```bash
-# Run single island optimization (example coordinates)
+# Run Ideal scenario
+python disaster_free.py --island_lat 25.5 --island_lon 120.0 --pop 1000
+# Run Baseline scenario
 python disaster_2020.py --island_lat 25.5 --island_lon 120.0 --pop 1000
-
-# Run future scenario
+# Run Climate stress scenario with current technology
+python disaster_2050.py --island_lat 25.5 --island_lon 120.0 --pop 1000
+# Run future scenarios with technology learning
+python disaster_future_2030.py --island_lat 25.5 --island_lon 120.0 --pop 1000
+python disaster_future_2040.py --island_lat 25.5 --island_lon 120.0 --pop 1000
 python disaster_future_2050.py --island_lat 25.5 --island_lon 120.0 --pop 1000
 ```
 
-### Batch Processing
+**Command-line arguments:**
+
+- `--island_lat`: Latitude in decimal degrees (WGS84)
+- `--island_lon`: Longitude in decimal degrees (WGS84)
+- `--pop`: Island population (scales energy demand)
+
+### Batch Processing Multiple Islands
+
+Create a CSV file `chosen_island.csv`:
+
+```csv
+island_name,latitude,longitude,population
+Island_A,25.5,120.0,1000
+Island_B,24.2,122.5,500
+```
+
+Run batch processing:
 
 ```bash
-# Process all islands in chosen_island.csv
 chmod +x run_jobs_all.sh
-
 nohup ./run_jobs_all.sh > logs/run_tasks.log 2>&1 &
-
 ```
+
+### Modifying Model Parameters
+
+Key parameters can be adjusted in the Python scenario files:
+
+| Parameter | Location | Description |
+|-----------|----------|-------------|
+| Investment costs | Lines 295-301 | Technology CAPEX ($/kW or $/kWh) |
+| Efficiencies | Lines 303-306 | Conversion/storage efficiencies |
+| LNG pricing | Lines 310-313 | Fuel cost, transport, fixed charter |
+| Penalty coefficients | Lines 316-320 | Curtailment, load shedding penalties |
+| Repair times | Lines 333-335 | Equipment restoration durations |
+| Monte Carlo scenarios | Line 513 | Number of failure scenarios (default: 10,000) |
+| Reliability target | Line 869 | EENS limit (default: 0.1% of demand) |
+
+### Reproduction Instructions
+
+To reproduce manuscript results:
+
+1. **Prepare renewable potential and energy demand data** in `demand_get/` folder, and download climate model data from external sources
+   - Follow manuscript "Method: Renewable Potential and Demand Assessment and Supplementary information: Supplementary Method 3"
+   - Download CMIP6 climate data from ESGF portals
+     - Model: MRI-AGCM3-2-S_highresSST
+     - Variables: uas, vas (wind components)
+     - Scenarios: SSP5-8.5
+
+2. **Run optimization code** in `code/` folder
+   - Execute scenario scripts for all islands in your database
+   - Generate optimization results for all climate and technology scenarios
+
+3. **Process results** in `result/` folder
+   - Compile optimization outputs across scenarios
+   - Calculate summary statistics and performance metrics
+
+4. **Visualize results** in `visualization/` folder
+   - Run visualization scripts to reproduce manuscript figures
+   - Scripts correspond to figures: `fig1_*.ipynb` → Figure 1, `fig2_*.ipynb` → Figure 2, etc.
 
 ## ⚙️ Model Formulation
 
@@ -162,11 +344,10 @@ min: CAPEX_annualized + OPEX_fixed + LNG_costs + Curtailment_penalties + Load_sh
 - Heat: EB + CHP heat + FC heat + TES discharge = heating demand + TES charge  
 - Cold: AC + LNGV cold + CES discharge = cooling demand + CES charge
 - Hydrogen: PEM production + H2S discharge = FC consumption + H2S charge
-- Natural Gas: LNGV gasification = CHP consumption + excess (penalty)
+- Natural Gas: LNGV gasification = CHP consumption
 
 **Reliability Requirements:**
 - Expected Energy Not Served (EENS) ≤ 0.1% of total demand for each energy carrier
-- Evaluated across all clustered failure scenarios with equal probability weighting
 
 **Storage Operations:**
 - Cyclic boundary conditions (end state = initial state)
@@ -192,13 +373,13 @@ min: CAPEX_annualized + OPEX_fixed + LNG_costs + Curtailment_penalties + Load_sh
 
 **3. Robust Optimization:**
 - Ensure system reliability across all representative failure scenarios
-- Minimize worst-case energy shortfalls through shortfall variables
 
 ## 📁 Output Structure
 
 ### Directory Organization
 ```
 project_root/
+├── output_0/              # Ideal scenario results
 ├── output_2020/           # Baseline scenario results
 ├── output_2050/           # Climate change impact
 ├── output_future_2030/    # Early tech adoption (2030)

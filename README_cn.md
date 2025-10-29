@@ -1,18 +1,14 @@
-# 岛屿能源系统优化与气候韧性建模
+# 岛屿能源系统优化与气候韧性
 
 基于混合整数线性规划(MILP)的岛屿能源系统韧性设计综合优化框架。该模型集成多能源系统与先进的可靠性建模和气候情景分析，为偏远岛屿的可持续能源规划提供支持。
 
-*英文文档请参见[README.md](README.md)*
+*英文文档请参见 [README.md](README.md)*
 
 ---
 
-**📋 注**：快速测试本研究的模型可去往[`test/`](test/)目录。根据[`test/test.md`](test/test.md)，可在5分钟内运行使用样本数据的模型。
+## 🌊 概述
 
----
-
-## 🌊 项目概述
-
-本项目实现了专门为面临气候变化挑战的岛屿社区设计的复杂能源系统优化模型。该系统在确保极端天气条件下高可靠性的同时，优化集成电-热-冷能源网络的设计和运行。
+本项目实现了专门为面临气候变化挑战的岛屿社区设计的复杂能源系统优化模型(MILP)。该系统在确保极端天气条件下高可靠性的同时，优化集成电-热-冷能源网络的设计和运行。
 
 ### 核心特性
 - **多能源集成**: 电力、供热、制冷系统的同步优化
@@ -27,7 +23,7 @@
 
 **可再生发电:**
 - **WT (风力发电机)**: 陆上风力发电
-- **PV (光伏发电)**: 太阳能发电  
+- **PV (光伏发电)**: 太阳能发电
 - **WEC (波浪能转换器)**: 海洋波浪能发电
 
 **传统能源系统:**
@@ -44,7 +40,7 @@
 **储能系统:**
 - **ESS (电储能系统)**: 电池储能
 - **TES (热储能)**: 热水/蒸汽储存系统
-- **CES (冷储能)**: 冷冻水储存系统  
+- **CES (冷储能)**: 冷冻水储存系统
 - **H2S (氢储能)**: 压缩氢气储存
 
 ### 可靠性建模
@@ -61,11 +57,12 @@
 
 ## 📊 情景分析
 
-模型包含五个不同情景，代表不同的气候条件和技术成熟度水平:
+模型包含六个不同情景，代表不同的气候条件和技术成熟度水平:
 
 | 情景文件 | 气候数据 | 技术成本 | 用途 | 输出目录 |
 |----------|----------|----------|------|----------|
-| `disaster_2020.py` | 2020年基线 | 2020年当前 | 历史基线性能 | `output_2020/` |
+| `disaster_free.py` | 理想(无灾害) | 2020年当前 | 当前理想性能 | `output_0/` |
+| `disaster_2020.py` | 2020年基线 | 2020年当前 | 当前基线性能 | `output_2020/` |
 | `disaster_2050.py` | 2050年预测 | 2020年当前 | 当前技术下的气候影响 | `output_2050/` |
 | `disaster_future_2030.py` | 2050年预测 | 2030年预测 | 早期技术采用效益 | `output_future_2030/` |
 | `disaster_future_2040.py` | 2050年预测 | 2040年预测 | 中期技术成熟化 | `output_future_2040/` |
@@ -84,61 +81,246 @@
 
 **固定成本:** 风电、光伏、LNG等成熟技术在各情景中保持恒定成本。
 
-## 🚀 快速开始
+## 📋 系统要求
 
-### 环境要求
+**操作系统:**
+
+- Windows 10/11
+- Linux (Ubuntu 20.04+, CentOS 8+)
+- macOS 11+ (Big Sur或更高版本)
+
+**Python:** >= 3.9 (已在3.9, 3.10, 3.11上测试)
 
 **必需的Python包:**
+
+*详见requirements.txt*
+- pandas >= 1.3.0
+- numpy >= 1.21.0
+- xarray >= 0.19.0
+- netCDF4 >= 1.5.7
+- gurobipy >= 9.5.0
+- scipy >= 1.7.0
+- geopy >= 2.2.0
+- pvlib >= 0.9.0
+- timezonefinder >= 5.2.0
+- scikit-learn >= 0.24.0
+- openpyxl >= 3.0.9
+
+**关键依赖:**
+
+- Gurobi优化器 11.0+ 及有效许可证
+- 下载: <https://www.gurobi.com/downloads/>
+- 学术许可证: <https://www.gurobi.com/academia/academic-program-and-licenses/>
+
+**硬件要求:**
+
+- **推荐配置**: 32 GB内存, 16+核心CPU
+- **存储空间**: 完整CMIP6数据需要70+ GB
+
+**测试平台:**
+
+- Windows 11 + Python 3.9, 3.10, 3.11
+- Ubuntu 22.04 + Python 3.9, 3.10, 3.11
+- macOS 14 + Python 3.9, 3.10, 3.11
+
+## 🔧 安装
+
+### 步骤1: 安装Python依赖
+
 ```bash
-pip install pandas numpy xarray gurobipy scipy geopy pvlib timezonefinder scikit-learn
+pip install -r requirements.txt
+或
+pip install pandas numpy xarray netCDF4 scipy geopy pvlib timezonefinder scikit-learn openpyxl gurobipy
 ```
 
-**系统要求:**
-- Gurobi优化器及有效许可证
-- 最少16GB内存(批量处理建议32GB+)
-- Python 3.8+
+### 步骤2: 配置Gurobi许可证
 
-### 输入数据要求
+```bash
+# 从 https://www.gurobi.com 获取许可证密钥
+grbgetkey YOUR-LICENSE-KEY
+
+# 验证安装
+python -c "import gurobipy as gp; print(gp.gurobi.version())"
+```
+
+**预计安装时间**: 标准台式机上5-10分钟
+
+**可选: 虚拟环境** (推荐)
+
+```bash
+# 使用conda
+conda create -n island_env python=3.11
+conda activate island_env
+
+# 或使用venv
+python -m venv island_env
+source island_env/bin/activate  # Windows: island_env\Scripts\activate
+```
+
+## 🎯 快速入门演示
+
+### 使用合成数据演示
+
+为快速测试而无需下载大型CMIP6数据集，我们提供了合成气候数据生成。
+
+**位置**: 所有演示文件位于 [`test/`](test/) 目录。详细说明请参见 [`test/test.md`](test/test.md)。
+
+### 运行演示
+
+**步骤1: 生成样本气候数据** (~30秒)
+
+```bash
+cd test
+python create_sample_data.py
+```
+
+这将创建4个NetCDF文件(总计~2 MB)。
+
+**步骤2: 运行理想情景测试** (~1分钟)
+
+```bash
+python disaster_free_test.py --island_lat 24.455253 --island_lon 122.988732 --pop 500
+```
+
+**步骤3: 运行基线情景测试** (~2分钟)
+
+```bash
+python disaster_2020_test.py --island_lat 24.455253 --island_lon 122.988732 --pop 500
+```
+
+### 预期演示输出
+
+输出文件生成在 `test/output_sample/`:
+
+1. **`*_best_cost_*.csv`** (8行): 系统成本分解
+   - 年化投资、LNG成本、运维、运行惩罚
+   - 预期总成本: 500人口的$100k-$500k
+
+2. **`*_capacity_*.csv`** (14行): 最优技术容量
+   - 可再生发电 (WT, PV, WEC)
+   - 能源转换系统 (CHP, EB, AC, PEM, FC, LNGV)
+   - 储能系统 (ESS, TES, CES, H2S)
+
+3. **`*_results_*.csv`** (2,920行): 详细运行数据
+   - 逐时发电量、储能状态、能源流
+   - 供需平衡、削减负荷事件
+
+### 演示运行时间
+
+- **总计**: ~3分钟(取决于CPU核心数)
+- **测试平台**: Intel i9-14900HX (24核心), 16 GB内存, Windows 11
+
+详情请参见 [`test/test.md`](test/test.md)。
+
+**关于完整研究的说明**: 手稿中发布的完整研究结果是在Linux高性能计算(HPC)集群上计算的，具有更强大的计算资源，能够高效计算数千个岛屿的多个气候情景。
+
+
+
+## 📖 使用说明
+
+### 数据目录结构
 
 ```
 project_root/
-├── demand/                         # 逐小时需求曲线
-│   ├── demand_{lat}_{lon}.csv      # 供热/制冷需求
+├── demand/                         # 能源需求曲线
+│   ├── demand_{lat}_{lon}.csv      # 逐时供热/制冷
 │   ├── pv_{lat}_{lon}.csv          # 太阳能潜力
 │   └── wt_{lat}_{lon}.csv          # 风能潜力
-├── CMIP6/                          # 气候模型数据
-│   ├── MRI_2020_uas/              # 2020年u风分量
-│   ├── MRI_2020_vas/              # 2020年v风分量  
-│   ├── MRI_2050_uas/              # 2050年u风预测
-│   └── MRI_2050_vas/              # 2050年v风预测
+├── CMIP6/                          # 气候模型预测
+│   ├── MRI_2020_uas/              # U风分量 (NetCDF)
+│   ├── MRI_2020_vas/              # V风分量 (NetCDF)
+│   ├── MRI_2050_uas/              # 未来预测
+│   └── MRI_2050_vas/              # 未来预测
 ├── wave/                           # 波浪能数据
-│   ├── wave_2020.nc               # 2020年波浪能密度
-│   ├── waveheight_2020.nc         # 2020年有效波高
-│   ├── wave_2050.nc               # 2050年波浪预测
-│   └── waveheight_2050.nc         # 2050年波高预测
+│   ├── wave_2020.nc               # 波浪能密度 (kW/m)
+│   ├── waveheight_2020.nc         # 有效波高 (m)
+│   ├── wave_2050.nc               # 未来波浪预测
+│   └── waveheight_2050.nc         # 未来波高
 └── LNG/
-    └── LNG_Terminals.xlsx         # 全球LNG终端位置
+    └── LNG_Terminals.xlsx         # 全球LNG终端数据库
 ```
 
-### 单岛执行
+**数据格式要求:**
+
+- **需求文件**: 带时间戳索引的CSV，列: heating_demand, cooling_demand
+- **可再生潜力**: 带时间戳索引的CSV，列: electricity
+- **气候数据**: NetCDF4格式，3小时时间分辨率，WGS84坐标
+- **CMIP6数据访问**: 从ESGF门户下载
+
+### 单岛优化
 
 ```bash
-# 运行单个岛屿优化(示例坐标)
+# 运行理想情景
+python disaster_free.py --island_lat 25.5 --island_lon 120.0 --pop 1000
+# 运行基线情景
 python disaster_2020.py --island_lat 25.5 --island_lon 120.0 --pop 1000
-
-# 运行未来情景
+# 运行当前技术下的气候压力情景
+python disaster_2050.py --island_lat 25.5 --island_lon 120.0 --pop 1000
+# 运行技术学习的未来情景
+python disaster_future_2030.py --island_lat 25.5 --island_lon 120.0 --pop 1000
+python disaster_future_2040.py --island_lat 25.5 --island_lon 120.0 --pop 1000
 python disaster_future_2050.py --island_lat 25.5 --island_lon 120.0 --pop 1000
 ```
 
-### 批量处理
+**命令行参数:**
+
+- `--island_lat`: 纬度(十进制度数，WGS84)
+- `--island_lon`: 经度(十进制度数，WGS84)
+- `--pop`: 岛屿人口(缩放能源需求)
+
+### 批量处理多个岛屿
+
+创建CSV文件 `chosen_island.csv`:
+
+```csv
+island_name,latitude,longitude,population
+Island_A,25.5,120.0,1000
+Island_B,24.2,122.5,500
+```
+
+运行批处理:
 
 ```bash
-# 处理chosen_island.csv中的所有岛屿
 chmod +x run_jobs_all.sh
-
 nohup ./run_jobs_all.sh > logs/run_tasks.log 2>&1 &
-
 ```
+
+### 修改模型参数
+
+可在Python情景文件中调整关键参数:
+
+| 参数 | 位置 | 描述 |
+|------|------|------|
+| 投资成本 | 第295-301行 | 技术CAPEX ($/kW 或 $/kWh) |
+| 效率 | 第303-306行 | 转换/储能效率 |
+| LNG定价 | 第310-313行 | 燃料成本、运输、固定租船 |
+| 惩罚系数 | 第316-320行 | 弃能、削减负荷惩罚 |
+| 维修时间 | 第333-335行 | 设备恢复持续时间 |
+| 蒙特卡洛情景 | 第513行 | 故障情景数量(默认: 10,000) |
+| 可靠性目标 | 第869行 | EENS限制(默认: 需求的0.1%) |
+
+### 重现说明
+
+重现手稿结果：
+
+1. **准备可再生能源潜力和需求数据** 在 `demand_get/` 文件夹中，并从外部下载气候模型数据
+   - 按照手稿"方法: 可再生潜力与需求评估 和 补充信息: 补充方法3"
+   - 从ESGF门户下载CMIP6气候数据
+     - 模型: MRI-AGCM3-2-S_highresSST
+     - 变量: uas, vas (风分量)
+     - 情景: SSP5-8.5
+
+2. **运行优化代码** 在 `code/` 文件夹中
+   - 为数据库中的所有岛屿执行情景脚本
+   - 生成所有气候和技术情景的优化结果
+
+3. **处理结果** 在 `result/` 文件夹中
+   - 汇编各情景的优化输出
+   - 计算汇总统计和性能指标
+
+4. **可视化结果** 在 `visualization/` 文件夹中
+   - 运行可视化脚本重现手稿图表
+   - 脚本对应图表: `fig1_*.ipynb` → 图1, `fig2_*.ipynb` → 图2, 等
 
 ## ⚙️ 模型公式
 
@@ -159,14 +341,13 @@ min: CAPEX年化 + OPEX固定 + LNG成本 + 弃能惩罚 + 削减负荷惩罚
 
 **能源平衡(多能源):**
 - 电力: 发电 + 储能放电 = 需求 + 转换负荷 + 储能充电
-- 热能: EB + CHP热 + FC热 + TES放热 = 供热需求 + TES储热  
+- 热能: EB + CHP热 + FC热 + TES放热 = 供热需求 + TES储热
 - 冷能: AC + LNGV冷 + CES放冷 = 制冷需求 + CES储冷
 - 氢气: PEM产氢 + H2S释放 = FC消耗 + H2S储存
-- 天然气: LNGV气化 = CHP消耗 + 多余(惩罚)
+- 天然气: LNGV气化 = CHP消耗
 
 **可靠性要求:**
 - 各能源载体的期望未服务能量(EENS) ≤ 总需求的0.1%
-- 通过所有聚类故障情景的等概率权重评估
 
 **储能运行:**
 - 循环边界条件(结束状态 = 初始状态)
@@ -192,17 +373,17 @@ min: CAPEX年化 + OPEX固定 + LNG成本 + 弃能惩罚 + 削减负荷惩罚
 
 **3. 鲁棒优化:**
 - 确保系统在所有代表性故障情景下的可靠性
-- 通过缺额变量最小化最坏情况下的能源短缺
 
 ## 📁 输出结构
 
 ### 目录组织
 ```
 project_root/
+├── output_0/              # 理想情景结果
 ├── output_2020/           # 基线情景结果
 ├── output_2050/           # 气候变化影响
 ├── output_future_2030/    # 早期技术采用(2030)
-├── output_future_2040/    # 中期技术发展(2040)  
+├── output_future_2040/    # 中期技术发展(2040)
 ├── output_future_2050/    # 成熟技术情景(2050)
 └── logs/                  # 执行日志和错误跟踪
 ```
@@ -217,14 +398,14 @@ project_root/
 **运行结果:**
 - `{lat}_{lon}_results.csv`: 2,920个时间步的详细运行数据，包括:
   - 各技术发电量
-  - 储能充放电循环  
+  - 储能充放电循环
   - 能源转换流量
   - 供需平衡
   - 削减负荷和弃能
 
 ### 性能监控
 - `logs/main_log.log`: 气候情景详细执行日志
-- `logs/main_future_log.log`: 技术情景执行日志  
+- `logs/main_future_log.log`: 技术情景执行日志
 - `logs/gap_failure_islands.csv`: 超过1% MIP最优性间隙的岛屿
 
 ## 🔬 研究应用
@@ -234,7 +415,7 @@ project_root/
 - **适应规划**: 识别未来条件下的最优技术组合
 - **风险分析**: 评估系统对极端天气事件的脆弱性
 
-### 技术经济学  
+### 技术经济学
 - **学习曲线分析**: 建模新兴技术成本下降的效益
 - **投资时机**: 优化技术部署时间表
 - **经济可行性**: 比较可再生能源与传统系统经济性
@@ -246,7 +427,7 @@ project_root/
 
 ### 政策支持
 - **基础设施规划**: 支持长期能源基础设施投资
-- **技术激励**: 评估促进可再生能源采用的政策  
+- **技术激励**: 评估促进可再生能源采用的政策
 - **气候适应**: 指导韧性基础设施发展策略
 
 ---

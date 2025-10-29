@@ -90,7 +90,7 @@ python -c "import gurobipy as gp; print(gp.gurobi.version())"
 
 **Purpose**: Tests optimization under ideal conditions (no equipment failures)
 
-**Validates**: Basic optimization, multi-energy integration (5 carriers), 14 technology coordination, storage cycling, economic optimization
+**Validates**: Basic optimization, multi-energy integration, 14 technology coordination, storage cycling, economic optimization
 
 **Runtime**: <1 minute
 
