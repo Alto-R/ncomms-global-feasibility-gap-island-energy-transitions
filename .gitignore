@@ -11,5 +11,9 @@ result/output_future_2050.tar.gz
 
 bfg.jar
 
+*__pycache__
+
 .vscode
 .claude
+
+result/benchmark_population_sensitivity
