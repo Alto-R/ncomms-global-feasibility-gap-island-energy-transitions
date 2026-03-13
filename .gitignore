@@ -17,3 +17,5 @@ bfg.jar
 .claude
 
 result/benchmark_population_sensitivity
+
+validation/output
