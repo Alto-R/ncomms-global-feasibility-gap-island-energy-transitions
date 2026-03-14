@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from benchmark_population_sensitivity_config import RUN_MATRIX_PATH, SAMPLE_TABLE_PATH
+from benchmark_population_sensitivity_config import (
+    RUN_MATRIX_PATH,
+    SAMPLE_TABLE_PATH,
+    SCENARIO_SCRIPTS,
+)
 from build_benchmark_population_sensitivity_sample import build_and_write
 
 
@@ -61,6 +65,12 @@ def parse_args():
         default="demand/get1",
         help="Directory containing the benchmark 500-person demand/resource CSV files.",
     )
+    parser.add_argument(
+        "--scenario",
+        choices=["all", *SCENARIO_SCRIPTS.keys()],
+        default="all",
+        help="Run only a single scenario instead of the full sensitivity matrix.",
+    )
     return parser.parse_args()
 
 
@@ -101,6 +111,11 @@ def main():
     repo_root = _repo_root()
     ensure_inputs(args.sample_file, args.run_matrix_file)
     run_matrix_df = pd.read_csv(args.run_matrix_file)
+    if args.scenario != "all":
+        run_matrix_df = run_matrix_df.loc[run_matrix_df["scenario"] == args.scenario].copy()
+
+    if run_matrix_df.empty:
+        raise ValueError(f"No runs found for scenario={args.scenario!r}.")
 
     records = []
     executed = 0
@@ -144,7 +159,10 @@ def main():
         )
 
     manifest_df = pd.DataFrame(records)
-    manifest_path = repo_root / "result" / "benchmark_population_sensitivity" / "run_execution_manifest.csv"
+    manifest_name = "run_execution_manifest.csv"
+    if args.scenario != "all":
+        manifest_name = f"run_execution_manifest_{args.scenario}.csv"
+    manifest_path = repo_root / "result" / "benchmark_population_sensitivity" / manifest_name
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_df.to_csv(manifest_path, index=False)
     print(f"Wrote execution manifest: {manifest_path}")
