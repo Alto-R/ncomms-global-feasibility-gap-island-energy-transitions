@@ -15,8 +15,8 @@ Run from project root:
 Outputs (all written to validation/):
     validation/Table_feasibility_threshold_sensitivity_{scenario}.csv
     validation/Table_sixregion_threshold_sensitivity_{scenario}.csv
-    validation/Figure_feasibility_threshold_sensitivity.pdf/.png
-    validation/Figure_sixregion_threshold_sensitivity.pdf/.png
+    validation/Figure_feasibility_threshold_sensitivity.png
+    validation/Figure_sixregion_threshold_sensitivity.png
 """
 
 import sys
@@ -52,12 +52,12 @@ SCENARIOS = {
 FIXED_MEDIAN_BREAKEVEN = 0.1973
 
 SIX_REGION_NAMES = [
-    "Q1: Feasible Low Cost High Afford.",
-    "Q2: Feasible High Cost High Afford.",
-    "Q3: Feasible Low Cost Low Afford.",
-    "Q4: Infeasible High Cost High Afford.",
-    "Q5: Infeasible Low Cost Low Afford.",
-    "Q6: Infeasible High Cost Low Afford.",
+    "Feasible Low Cost High Afford.",
+    "Feasible High Cost High Afford.",
+    "Feasible Low Cost Low Afford.",
+    "Infeasible High Cost High Afford.",
+    "Infeasible Low Cost Low Afford.",
+    "Infeasible High Cost Low Afford.",
 ]
 
 # Short labels for plots
@@ -429,18 +429,16 @@ def main():
 
     # ---- Figure 1: feasibility sensitivity ----
     fig1 = make_feasibility_figure(feas_data)
-    for ext in ("pdf", "png"):
-        p = OUT_DIR / f"Figure_feasibility_threshold_sensitivity.{ext}"
-        fig1.savefig(p, bbox_inches="tight", dpi=300)
-        print(f"Saved: {p}")
+    p = OUT_DIR / "Figure_feasibility_threshold_sensitivity.png"
+    fig1.savefig(p, bbox_inches="tight", dpi=300)
+    print(f"Saved: {p}")
     plt.close(fig1)
 
     # ---- Figure 2: six-region classification sensitivity ----
     fig2 = make_sixregion_figure(sixr_data)
-    for ext in ("pdf", "png"):
-        p = OUT_DIR / f"Figure_sixregion_threshold_sensitivity.{ext}"
-        fig2.savefig(p, bbox_inches="tight", dpi=300)
-        print(f"Saved: {p}")
+    p = OUT_DIR / "Figure_sixregion_threshold_sensitivity.png"
+    fig2.savefig(p, bbox_inches="tight", dpi=300)
+    print(f"Saved: {p}")
     plt.close(fig2)
 
     print(f"\nAll outputs written to: {OUT_DIR}")
