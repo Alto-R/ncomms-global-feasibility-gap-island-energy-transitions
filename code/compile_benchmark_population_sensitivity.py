@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -6,8 +7,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-CODE_ROOT = REPO_ROOT / "code"
+def _find_repo_root():
+    candidate = Path(__file__).resolve().parents[1]
+    if (candidate / "result").exists():
+        return candidate
+    if (candidate / "island" / "result").exists():
+        return candidate / "island"
+    return candidate
+
+REPO_ROOT = Path(os.environ.get("ISLAND_REPO_ROOT", str(_find_repo_root())))
+CODE_ROOT = Path(__file__).resolve().parent
 if str(CODE_ROOT) not in sys.path:
     sys.path.insert(0, str(CODE_ROOT))
 
@@ -141,7 +150,7 @@ def load_baseline_frames():
 
 
 def collect_completed_runs(sample_df, run_matrix_df, viability_df):
-    viability_lookup = viability_df.set_index(["island_id", "scenario"])
+    viability_lookup = viability_df.set_index(["island_id", "scenario"]).sort_index()
     sample_lookup = sample_df.set_index("island_id").to_dict("index")
     records = []
     missing = []
@@ -162,6 +171,8 @@ def collect_completed_runs(sample_df, run_matrix_df, viability_df):
             continue
 
         baseline = viability_lookup.loc[(int(row["island_id"]), row["scenario"])]
+        if hasattr(baseline, "iloc"):
+            baseline = baseline.iloc[0]
         sample_meta = sample_lookup[int(row["island_id"])]
 
         cost_df = pd.read_csv(cost_path)
@@ -228,7 +239,7 @@ def write_reproduction_check(run_results_df, viability_df, baseline_cost_frames)
     if sensitivity_500.empty:
         return None
 
-    baseline_viability = viability_df.set_index(["island_id", "scenario"])
+    baseline_viability = viability_df.set_index(["island_id", "scenario"]).sort_index()
     comparison_rows = []
     for scenario, baseline_cost_df in baseline_cost_frames.items():
         scenario_runs = sensitivity_500[sensitivity_500["scenario"] == scenario].copy()
@@ -236,16 +247,23 @@ def write_reproduction_check(run_results_df, viability_df, baseline_cost_frames)
             continue
 
         scenario_runs = scenario_runs.merge(
-            baseline_cost_df,
+            baseline_cost_df[baseline_cost_df["population"] == 500],
             left_on=["latitude", "longitude"],
             right_on=["lat", "lon"],
             how="left",
         )
+        per_capita_cols = [
+            "renewable_cost_per_capita", "storage_cost_per_capita", "lng_cost_per_capita",
+            "other_equipment_cost_per_capita", "discard_cost_per_capita", "load_shedding_cost_per_capita",
+        ]
+        if not all(c in scenario_runs.columns for c in per_capita_cols):
+            continue
+        if "total_cost_per_capita" not in scenario_runs.columns:
+            scenario_runs["total_cost_per_capita"] = scenario_runs[per_capita_cols].sum(axis=1)
         scenario_runs = scenario_runs.dropna(subset=["total_cost_per_capita"])
         for row in scenario_runs.to_dict("records"):
-            baseline_tariff = float(
-                baseline_viability.loc[(int(row["island_id"]), scenario), "tariff_breakeven"]
-            )
+            _bt = baseline_viability.loc[(int(row["island_id"]), scenario), "tariff_breakeven"]
+            baseline_tariff = float(_bt.iloc[0] if hasattr(_bt, "iloc") else _bt)
             baseline_total = float(row["total_cost_per_capita"])
             baseline_shares = {
                 "renewable": row["renewable_cost_per_capita"] / baseline_total if baseline_total else 0.0,
@@ -367,6 +385,9 @@ def write_actual_delta_summary(run_results_df):
 
 def plot_delta_distribution(run_results_df):
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
+    POP_BINS = [500, 1000, 2000, 5000, 10000, 50000, float("inf")]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", "10k–50k", ">50k"]
+
     baseline = run_results_df[run_results_df["population_label"] == "500"][
         ["island_id", "scenario", "tariff_breakeven"]
     ].rename(columns={"tariff_breakeven": "tariff_breakeven_500"})
@@ -378,19 +399,25 @@ def plot_delta_distribution(run_results_df):
     deltas["pct_delta_lcoe"] = (
         (deltas["tariff_breakeven"] - deltas["tariff_breakeven_500"]) / deltas["tariff_breakeven_500"] * 100
     )
+    deltas["pop_bin"] = pd.cut(
+        deltas["target_population"],
+        bins=POP_BINS,
+        labels=POP_BIN_LABELS,
+        right=False,
+    )
 
     plt.figure(figsize=(11, 6.5), dpi=300)
     sns.boxplot(
         data=deltas,
-        x="population_label",
+        x="pop_bin",
         y="pct_delta_lcoe",
         hue="scenario_label",
-        order=["2000", "10000", "actual"],
+        order=POP_BIN_LABELS,
         showfliers=False,
     )
     plt.axhline(0, color="#666666", linewidth=1, linestyle="--")
-    plt.xlabel("Population level")
-    plt.ylabel("%Delta LCOE vs 500-person benchmark")
+    plt.xlabel("Target population")
+    plt.ylabel("%\u0394LCOE vs 500-person benchmark")
     plt.title("All-island LCOE sensitivity distribution across population levels")
     plt.tight_layout()
     output = FIGURES_ROOT / "Figure_Sy_lcoe_delta_distribution.png"
@@ -476,6 +503,171 @@ def plot_actual_population_scatter(run_results_df):
     return output
 
 
+def plot_viability_gap_change(run_results_df):
+    """Show how viability gap shrinks with population while infeasibility persists."""
+    FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
+    POP_BINS = [500, 1000, 2000, 5000, 10000, 50000, float("inf")]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", "10k–50k", ">50k"]
+    SCENARIO_LIST = ["output_0", "output_2050"]
+
+    baseline = run_results_df[run_results_df["population_label"] == "500"][
+        ["island_id", "scenario", "tariff_breakeven", "viability_gap", "is_feasible"]
+    ].rename(columns={
+        "tariff_breakeven": "tariff_breakeven_500",
+        "viability_gap": "viability_gap_500",
+        "is_feasible": "is_feasible_500",
+    })
+
+    others = run_results_df[run_results_df["population_label"] != "500"].copy()
+    others["pop_bin"] = pd.cut(
+        others["target_population"], bins=POP_BINS, labels=POP_BIN_LABELS, right=False
+    )
+    merged = others.merge(baseline, on=["island_id", "scenario"], how="inner")
+
+    # Only infeasible-at-baseline islands (the ones that matter for the argument)
+    infeasible = merged[~merged["is_feasible_500"]].copy()
+    if infeasible.empty:
+        return None
+
+    infeasible["gap_delta_pp"] = infeasible["viability_gap"] - infeasible["viability_gap_500"]
+    infeasible["still_infeasible"] = ~infeasible["is_feasible"]
+
+    fig, axes = plt.subplots(1, len(SCENARIO_LIST), figsize=(13, 5), dpi=300, sharey=True)
+    for ax, scenario in zip(axes, SCENARIO_LIST):
+        df = infeasible[infeasible["scenario"] == scenario]
+        if df.empty:
+            ax.axis("off")
+            continue
+
+        # Boxplot of gap change
+        data_by_bin = [
+            df[df["pop_bin"] == b]["gap_delta_pp"].dropna().values
+            for b in POP_BIN_LABELS
+        ]
+        bp = ax.boxplot(
+            data_by_bin,
+            positions=range(len(POP_BIN_LABELS)),
+            widths=0.6,
+            patch_artist=True,
+            showfliers=False,
+            medianprops=dict(color="black", linewidth=1.5),
+        )
+        for patch in bp["boxes"]:
+            patch.set_facecolor("#AED6F1")
+            patch.set_alpha(0.8)
+
+        # Overlay: % still infeasible per bin
+        ax2 = ax.twinx()
+        still_infeasible_pct = [
+            df[df["pop_bin"] == b]["still_infeasible"].mean() * 100
+            for b in POP_BIN_LABELS
+        ]
+        ax2.plot(
+            range(len(POP_BIN_LABELS)),
+            still_infeasible_pct,
+            color="#C0392B", marker="o", linewidth=2, markersize=6, label="Still infeasible (%)",
+        )
+        ax2.set_ylim(0, 110)
+        ax2.set_ylabel("Still infeasible (%)", color="#C0392B", fontsize=9)
+        ax2.tick_params(axis="y", colors="#C0392B")
+        ax2.axhline(90, color="#C0392B", linewidth=0.8, linestyle=":", alpha=0.5)
+
+        ax.axhline(0, color="#666666", linewidth=1, linestyle="--")
+        ax.set_xticks(range(len(POP_BIN_LABELS)))
+        ax.set_xticklabels(POP_BIN_LABELS, fontsize=9)
+        ax.set_xlabel("Target population")
+        ax.set_ylabel("Change in viability gap ($/kWh)" if scenario == SCENARIO_LIST[0] else "")
+        ax.set_title(SCENARIO_LABELS[scenario], fontsize=11)
+        ax.grid(axis="y", alpha=0.2)
+
+        # Auto-scale y-axis to data range with padding
+        all_vals = infeasible[infeasible["scenario"] == scenario]["gap_delta_pp"].dropna()
+        if not all_vals.empty:
+            lo, hi = all_vals.quantile(0.05), all_vals.quantile(0.95)
+            pad = max(abs(hi - lo) * 0.3, 0.01)
+            ax.set_ylim(lo - pad, hi + pad)
+
+        if scenario == SCENARIO_LIST[-1]:
+            ax2.legend(loc="lower left", fontsize=8)
+
+    fig.suptitle(
+        "Viability gap change vs 500-person benchmark\n(infeasible islands only; red line = % remaining infeasible)",
+        fontsize=11,
+    )
+    fig.tight_layout()
+    output = FIGURES_ROOT / "Figure_Sw_viability_gap_change.png"
+    fig.savefig(output, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
+def plot_classification_stability(run_results_df):
+    FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
+
+    POP_BINS = [500, 1000, 2000, 5000, 10000, 50000, float("inf")]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", "10k–50k", ">50k"]
+    SCENARIO_LIST = ["output_0", "output_2050"]
+
+    baseline = run_results_df[run_results_df["population_label"] == "500"][
+        ["island_id", "scenario", "is_feasible"]
+    ].rename(columns={"is_feasible": "is_feasible_500"})
+
+    others = run_results_df[run_results_df["population_label"] != "500"].copy()
+    others["pop_bin"] = pd.cut(
+        others["target_population"],
+        bins=POP_BINS,
+        labels=POP_BIN_LABELS,
+        right=False,
+    )
+
+    merged = others.merge(baseline, on=["island_id", "scenario"], how="inner")
+    merged["unchanged"] = merged["is_feasible"] == merged["is_feasible_500"]
+
+    if merged.empty:
+        return None
+
+    stability = (
+        merged.groupby(["scenario", "pop_bin"], observed=True)["unchanged"]
+        .agg(stability_pct=lambda x: x.mean() * 100, n="count")
+        .reset_index()
+    )
+
+    fig, axes = plt.subplots(1, len(SCENARIO_LIST), figsize=(13, 4.5), dpi=300, sharey=True)
+    for ax, scenario in zip(axes, SCENARIO_LIST):
+        df = stability[stability["scenario"] == scenario].set_index("pop_bin").reindex(POP_BIN_LABELS)
+        ax.bar(
+            range(len(POP_BIN_LABELS)),
+            df["stability_pct"].fillna(0),
+            color=[
+                "#2ECC71" if v >= 95 else "#F39C12" if v >= 85 else "#E74C3C"
+                for v in df["stability_pct"].fillna(0)
+            ],
+            edgecolor="white",
+            width=0.7,
+        )
+        for i, (val, n) in enumerate(zip(df["stability_pct"], df["n"])):
+            if not pd.isna(val):
+                ax.text(i, val + 0.5, f"{val:.0f}%\n(n={n:.0f})", ha="center", va="bottom", fontsize=8)
+
+        ax.axhline(95, color="#2ECC71", linewidth=1, linestyle="--", alpha=0.7, label="95%")
+        ax.axhline(85, color="#F39C12", linewidth=1, linestyle="--", alpha=0.7, label="85%")
+        ax.set_xticks(range(len(POP_BIN_LABELS)))
+        ax.set_xticklabels(POP_BIN_LABELS, fontsize=9)
+        ax.set_ylim(0, 108)
+        ax.set_ylabel("Islands with unchanged feasibility (%)")
+        ax.set_xlabel("Target population")
+        ax.set_title(SCENARIO_LABELS[scenario], fontsize=11)
+        ax.grid(axis="y", alpha=0.2)
+
+    axes[0].legend(fontsize=8, loc="lower left")
+    fig.suptitle("Feasibility classification stability vs 500-person benchmark", fontsize=12)
+    fig.tight_layout()
+    output = FIGURES_ROOT / "Figure_Sx_classification_stability.png"
+    fig.savefig(output, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
 def main():
     args = parse_args()
     ensure_inputs(args.sample_file, args.run_matrix_file)
@@ -501,6 +693,8 @@ def main():
     plot_delta_distribution(run_results_df)
     plot_cost_composition(run_results_df)
     plot_actual_population_scatter(run_results_df)
+    plot_viability_gap_change(run_results_df)
+    plot_classification_stability(run_results_df)
     print(f"Compiled {len(run_results_df)} completed sensitivity runs.")
 
 
