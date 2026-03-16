@@ -511,7 +511,7 @@ def plot_delta_distribution(run_results_df):
         ncol=3,
         frameon=False,
         fontsize=6.5,
-        bbox_to_anchor=(0.5, -0.20),
+        bbox_to_anchor=(0.5, -0.16),
     )
 
     output = FIGURES_ROOT / "Figure_Sy_lcoe_delta_distribution.png"
@@ -768,7 +768,7 @@ def plot_classification_stability(run_results_df):
     ax.set_title("")
     ax.grid(False)
     ax.spines[["top", "right"]].set_visible(False)
-    fig.legend(loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, -0.15), fontsize=9)
+    fig.legend(loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, -0.08), fontsize=9)
     fig.tight_layout()
     output = FIGURES_ROOT / "Figure_Sx_classification_stability.png"
     fig.savefig(output, bbox_inches="tight")
