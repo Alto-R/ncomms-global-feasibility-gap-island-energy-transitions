@@ -456,7 +456,8 @@ def plot_delta_distribution(run_results_df):
             # Kernel density estimate for violin
             from scipy.stats import gaussian_kde
             kde = gaussian_kde(vals, bw_method=0.35)
-            v_range = np.linspace(vals.min(), vals.max(), 200)
+            bw_pad = kde.factor * np.std(vals, ddof=1) * 2.0
+            v_range = np.linspace(vals.min() - bw_pad, vals.max() + bw_pad, 300)
             density = kde(v_range)
             # Normalise to half-width = 0.38
             half_width = 0.38
