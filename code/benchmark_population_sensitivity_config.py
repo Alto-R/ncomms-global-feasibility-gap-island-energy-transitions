@@ -36,7 +36,7 @@ SCENARIO_SCRIPTS = {
 }
 
 SCENARIO_LABELS = {
-    "output_0": "Disaster-free",
+    "output_0": "Baseline",
     "output_2050": "Climate Stress 2050",
 }
 

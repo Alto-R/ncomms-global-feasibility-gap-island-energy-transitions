@@ -19,3 +19,5 @@ bfg.jar
 result/benchmark_population_sensitivity
 
 validation/output
+
+*.csv

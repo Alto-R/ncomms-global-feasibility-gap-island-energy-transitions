@@ -44,7 +44,7 @@ THRESHOLD_LABELS = ["6%", "8%", "10%\n(baseline)", "12%"]
 THRESHOLD_COLORS = ["#D6604D", "#F4A582", "#4393C3", "#2166AC"]
 
 SCENARIOS = {
-    "output_0": "Disaster-free (Baseline)",
+    "output_0": "Baseline",
     "output_2050": "Climate Stress 2050",
 }
 
@@ -219,13 +219,13 @@ def make_feasibility_figure(scenario_data: dict) -> plt.Figure:
     """
     Two columns (one per scenario), two rows:
       Row 0: bar chart of % infeasible ± 95% CI
-      Row 1: violin of viability gap distribution
+      Row 1: violin of feasibility gap distribution
     """
     n_sc = len(scenario_data)
     fig, axes = plt.subplots(
         2, n_sc,
         figsize=(4.5 * n_sc, 7),
-        gridspec_kw={"hspace": 0.5, "wspace": 0.4},
+        gridspec_kw={"hspace": 0.25, "wspace": 0.4},
     )
     if n_sc == 1:
         axes = axes.reshape(2, 1)
@@ -264,7 +264,7 @@ def make_feasibility_figure(scenario_data: dict) -> plt.Figure:
         ax_bar.set_xticks(x)
         ax_bar.set_xticklabels(THRESHOLD_LABELS, fontsize=9)
         ax_bar.set_ylabel("Infeasible islands (%)")
-        ax_bar.set_title(f"{label}\n% Infeasible by threshold", fontsize=10, pad=4)
+        ax_bar.set_title(label, fontsize=10, pad=4)
         ax_bar.spines[["top", "right"]].set_visible(False)
         ax_bar.set_ylim(0, max(pct_vals) * 1.25)
 
@@ -284,8 +284,8 @@ def make_feasibility_figure(scenario_data: dict) -> plt.Figure:
         ax_vio.axhline(0, color="red", linestyle="--", linewidth=0.8, alpha=0.8)
         ax_vio.set_xticks(x)
         ax_vio.set_xticklabels(THRESHOLD_LABELS, fontsize=9)
-        ax_vio.set_ylabel("Viability gap ($/kWh)\n(+ = infeasible)")
-        ax_vio.set_title(f"{label}\nViability gap distribution", fontsize=10, pad=4)
+        ax_vio.set_ylabel("Feasibility gap ($/kWh)")
+        ax_vio.set_title("", fontsize=10, pad=4)
         ax_vio.spines[["top", "right"]].set_visible(False)
 
     baseline_patch = mpatches.Patch(

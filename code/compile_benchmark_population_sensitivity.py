@@ -385,8 +385,29 @@ def write_actual_delta_summary(run_results_df):
 
 def plot_delta_distribution(run_results_df):
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
-    POP_BINS = [500, 1000, 2000, 5000, 10000, 50000, float("inf")]
-    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", "10k–50k", ">50k"]
+    import matplotlib as mpl
+    import numpy as np
+
+    POP_BINS = [500, 1000, 2000, 5000, 10000, float("inf")]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", ">10k"]
+    SCENARIO_LIST = ["output_0", "output_2050"]
+    SCENARIO_COLORS = {"output_0": "black", "output_2050": "black"}
+    SCENARIO_FILL = {"output_0": "#4393C3", "output_2050": "#D6604D"}
+
+    # Nature Communications font settings
+    mpl.rcParams.update({
+        "font.family": "Arial",
+        "font.size": 7,
+        "axes.linewidth": 0.6,
+        "xtick.major.width": 0.6,
+        "ytick.major.width": 0.6,
+        "xtick.major.size": 3,
+        "ytick.major.size": 3,
+        "xtick.direction": "out",
+        "ytick.direction": "out",
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+    })
 
     baseline = run_results_df[run_results_df["population_label"] == "500"][
         ["island_id", "scenario", "tariff_breakeven"]
@@ -399,6 +420,7 @@ def plot_delta_distribution(run_results_df):
     deltas["pct_delta_lcoe"] = (
         (deltas["tariff_breakeven"] - deltas["tariff_breakeven_500"]) / deltas["tariff_breakeven_500"] * 100
     )
+    deltas = deltas[deltas["pct_delta_lcoe"].abs() <= 100].copy()
     deltas["pop_bin"] = pd.cut(
         deltas["target_population"],
         bins=POP_BINS,
@@ -406,23 +428,98 @@ def plot_delta_distribution(run_results_df):
         right=False,
     )
 
-    plt.figure(figsize=(11, 6.5), dpi=300)
-    sns.boxplot(
-        data=deltas,
-        x="pop_bin",
-        y="pct_delta_lcoe",
-        hue="scenario_label",
-        order=POP_BIN_LABELS,
-        showfliers=False,
+    # Figure: 183 mm wide (Nature Comms double-column), 70 mm tall
+    fig, axes = plt.subplots(
+        1, len(SCENARIO_LIST),
+        figsize=(7.2, 2.75),
+        dpi=300,
+        sharey=True,
     )
-    plt.axhline(0, color="#666666", linewidth=1, linestyle="--")
-    plt.xlabel("Target population")
-    plt.ylabel("%\u0394LCOE vs 500-person benchmark")
-    plt.title("All-island LCOE sensitivity distribution across population levels")
-    plt.tight_layout()
+    fig.subplots_adjust(wspace=0.08)
+
+    positions = list(range(len(POP_BIN_LABELS)))
+
+    for ax, scenario in zip(axes, SCENARIO_LIST):
+        color_edge = SCENARIO_COLORS[scenario]
+        color_fill = SCENARIO_FILL[scenario]
+        df_s = deltas[deltas["scenario"] == scenario]
+
+        for i, label in enumerate(POP_BIN_LABELS):
+            vals = df_s[df_s["pop_bin"] == label]["pct_delta_lcoe"].dropna().values
+            if len(vals) < 4:
+                ax.scatter(
+                    [i], [np.median(vals)] if len(vals) else [0],
+                    color=color_edge, s=12, zorder=5,
+                )
+                continue
+
+            # Kernel density estimate for violin
+            from scipy.stats import gaussian_kde
+            kde = gaussian_kde(vals, bw_method=0.35)
+            v_range = np.linspace(vals.min(), vals.max(), 200)
+            density = kde(v_range)
+            # Normalise to half-width = 0.38
+            half_width = 0.38
+            density = density / density.max() * half_width
+
+            ax.fill_betweenx(v_range, i - density, i + density,
+                             color=color_fill, linewidth=0)
+            ax.plot(i - density, v_range, color=color_edge, linewidth=0.6)
+            ax.plot(i + density, v_range, color=color_edge, linewidth=0.6)
+
+            # IQR bar + median line
+            q25, q50, q75 = np.percentile(vals, [25, 50, 75])
+            ax.plot([i, i], [q25, q75], color=color_edge, linewidth=2.0, solid_capstyle="butt", zorder=4)
+            ax.scatter([i], [q50], color="white", s=16, zorder=5,
+                       edgecolors=color_edge, linewidths=0.8)
+
+        # Zero reference line
+        ax.axhline(0, color="#C0392B", linewidth=0.9, linestyle="--", zorder=3)
+
+        ax.set_xticks(positions)
+        ax.set_xticklabels(POP_BIN_LABELS, fontsize=6.5, rotation=30, ha="right")
+        ax.set_xlim(-0.6, len(POP_BIN_LABELS) - 0.4)
+        ax.set_xlabel("Target population", fontsize=7.5)
+        ax.set_title("")
+        ax.grid(False)
+        ax.tick_params(labelsize=6.5)
+
+        # Count annotation at top
+        n_total = len(df_s["island_id"].unique())
+        # ax.text(
+        #     0.97, 0.97, f"n = {n_total} islands",
+        #     transform=ax.transAxes,
+        #     ha="right", va="top", fontsize=6, color="#555555",
+        # )
+
+    axes[0].set_ylabel("%\u0394LCOE vs 500-person benchmark", fontsize=7.5)
+    axes[1].set_ylabel("")
+
+    # Shared legend
+    from matplotlib.patches import Patch
+    legend_handles = [
+        Patch(facecolor=SCENARIO_FILL[s], edgecolor=SCENARIO_COLORS[s],
+              linewidth=0.8, label=SCENARIO_LABELS[s])
+        for s in SCENARIO_LIST
+    ]
+    legend_handles.append(
+        plt.Line2D([0], [0], color="#C0392B", linewidth=0.9, linestyle="--", label="No change (0%)")
+    )
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        fontsize=6.5,
+        bbox_to_anchor=(0.5, -0.20),
+    )
+
     output = FIGURES_ROOT / "Figure_Sy_lcoe_delta_distribution.png"
-    plt.savefig(output, bbox_inches="tight")
-    plt.close()
+    fig.savefig(output, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+
+    # Reset rcParams to defaults to avoid affecting subsequent plots
+    mpl.rcParams.update(mpl.rcParamsDefault)
     return output
 
 
@@ -458,7 +555,7 @@ def plot_cost_composition(run_results_df):
             )
             bottom += plot_df[f"{bucket}_share"].fillna(0.0)
 
-        ax.set_title(SCENARIO_LABELS[scenario])
+        ax.set_title("")
         ax.set_xticks(list(positions))
         ax.set_xticklabels(plot_df.index.tolist())
         ax.set_ylim(0, 100)
@@ -466,9 +563,8 @@ def plot_cost_composition(run_results_df):
         ax.grid(axis="y", alpha=0.2)
 
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=6, frameon=False)
-    fig.suptitle("All-island median cost composition across population levels", y=1.02)
-    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.legend(handles, labels, loc="lower center", ncol=6, frameon=False, bbox_to_anchor=(0.5, -0.05))
+    fig.tight_layout()
     output = FIGURES_ROOT / "Figure_Sz_cost_composition.png"
     fig.savefig(output, bbox_inches="tight")
     plt.close(fig)
@@ -488,14 +584,14 @@ def plot_actual_population_scatter(run_results_df):
         y="pct_delta_lcoe_actual",
         hue="scenario",
         palette={"output_0": "#0B75B3", "output_2050": "#982B2D"},
-        alpha=0.6,
         s=30,
     )
     plt.xscale("log")
     plt.axhline(0, color="#666666", linewidth=1, linestyle="--")
     plt.xlabel("Actual population")
     plt.ylabel("%Delta LCOE: actual population vs 500 benchmark")
-    plt.title("All-island actual-population sensitivity against island size")
+    plt.title("")
+    plt.legend(loc="lower center", bbox_to_anchor=(0.5, -0.18), ncol=2, frameon=False)
     plt.tight_layout()
     output = FIGURES_ROOT / "Figure_optional_actual_population_scatter.png"
     plt.savefig(output, bbox_inches="tight")
@@ -506,8 +602,8 @@ def plot_actual_population_scatter(run_results_df):
 def plot_viability_gap_change(run_results_df):
     """Show how viability gap shrinks with population while infeasibility persists."""
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
-    POP_BINS = [500, 1000, 2000, 5000, 10000, 50000, float("inf")]
-    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", "10k–50k", ">50k"]
+    POP_BINS = [500, 1000, 2000, 5000, 10000, float("inf")]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", ">10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
 
     baseline = run_results_df[run_results_df["population_label"] == "500"][
@@ -554,7 +650,6 @@ def plot_viability_gap_change(run_results_df):
         )
         for patch in bp["boxes"]:
             patch.set_facecolor("#AED6F1")
-            patch.set_alpha(0.8)
 
         # Overlay: % still infeasible per bin
         ax2 = ax.twinx()
@@ -570,14 +665,14 @@ def plot_viability_gap_change(run_results_df):
         ax2.set_ylim(0, 110)
         ax2.set_ylabel("Still infeasible (%)", color="#C0392B", fontsize=9)
         ax2.tick_params(axis="y", colors="#C0392B")
-        ax2.axhline(90, color="#C0392B", linewidth=0.8, linestyle=":", alpha=0.5)
+        ax2.axhline(90, color="#C0392B", linewidth=0.8, linestyle=":")
 
         ax.axhline(0, color="#666666", linewidth=1, linestyle="--")
         ax.set_xticks(range(len(POP_BIN_LABELS)))
         ax.set_xticklabels(POP_BIN_LABELS, fontsize=9)
         ax.set_xlabel("Target population")
         ax.set_ylabel("Change in viability gap ($/kWh)" if scenario == SCENARIO_LIST[0] else "")
-        ax.set_title(SCENARIO_LABELS[scenario], fontsize=11)
+        ax.set_title("")
         ax.grid(axis="y", alpha=0.2)
 
         # Auto-scale y-axis to data range with padding
@@ -587,13 +682,9 @@ def plot_viability_gap_change(run_results_df):
             pad = max(abs(hi - lo) * 0.3, 0.01)
             ax.set_ylim(lo - pad, hi + pad)
 
-        if scenario == SCENARIO_LIST[-1]:
-            ax2.legend(loc="lower left", fontsize=8)
-
-    fig.suptitle(
-        "Viability gap change vs 500-person benchmark\n(infeasible islands only; red line = % remaining infeasible)",
-        fontsize=11,
-    )
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    fig.legend(handles2, labels2, loc="lower center", ncol=1, frameon=False,
+               bbox_to_anchor=(0.5, -0.04), fontsize=8)
     fig.tight_layout()
     output = FIGURES_ROOT / "Figure_Sw_viability_gap_change.png"
     fig.savefig(output, bbox_inches="tight")
@@ -604,9 +695,13 @@ def plot_viability_gap_change(run_results_df):
 def plot_classification_stability(run_results_df):
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
 
-    POP_BINS = [500, 1000, 2000, 5000, 10000, 50000, float("inf")]
-    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", "10k–50k", ">50k"]
+    POP_BINS = [500, 1000, 2000, 5000, 10000, float("inf")]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", ">10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
+    SCENARIO_COLORS = {
+        "output_0": "#2166AC",
+        "output_2050": "#D6604D",
+    }
 
     baseline = run_results_df[run_results_df["population_label"] == "500"][
         ["island_id", "scenario", "is_feasible"]
@@ -627,40 +722,53 @@ def plot_classification_stability(run_results_df):
         return None
 
     stability = (
-        merged.groupby(["scenario", "pop_bin"], observed=True)["unchanged"]
-        .agg(stability_pct=lambda x: x.mean() * 100, n="count")
+        merged.groupby(["scenario", "pop_bin"], observed=True)
+        .agg(
+            stability_pct=("unchanged", lambda x: x.mean() * 100),
+            n=("island_id", "nunique"),
+        )
         .reset_index()
     )
 
-    fig, axes = plt.subplots(1, len(SCENARIO_LIST), figsize=(13, 4.5), dpi=300, sharey=True)
-    for ax, scenario in zip(axes, SCENARIO_LIST):
+    import numpy as np
+    n_bins = len(POP_BIN_LABELS)
+    n_sc = len(SCENARIO_LIST)
+    bar_width = 0.35
+    x = np.arange(n_bins)
+
+    fig, ax = plt.subplots(figsize=(7, 3.5), dpi=300)
+
+    for si, scenario in enumerate(SCENARIO_LIST):
         df = stability[stability["scenario"] == scenario].set_index("pop_bin").reindex(POP_BIN_LABELS)
+        offsets = x + (si - (n_sc - 1) / 2) * bar_width
+        vals = df["stability_pct"].fillna(0).values
         ax.bar(
-            range(len(POP_BIN_LABELS)),
-            df["stability_pct"].fillna(0),
-            color=[
-                "#2ECC71" if v >= 95 else "#F39C12" if v >= 85 else "#E74C3C"
-                for v in df["stability_pct"].fillna(0)
-            ],
-            edgecolor="white",
-            width=0.7,
+            offsets, vals,
+            width=bar_width,
+            color=SCENARIO_COLORS[scenario],
+            alpha=0.8,
+            edgecolor="none",
+            label=SCENARIO_LABELS[scenario],
         )
-        for i, (val, n) in enumerate(zip(df["stability_pct"], df["n"])):
-            if not pd.isna(val):
-                ax.text(i, val + 0.5, f"{val:.0f}%\n(n={n:.0f})", ha="center", va="bottom", fontsize=8)
+        for xi, val in enumerate(vals):
+            if val > 0:
+                ax.text(
+                    offsets[xi], val + 0.5,
+                    f"{val:.0f}%",
+                    ha="center", va="bottom", fontsize=7,
+                    color=SCENARIO_COLORS[scenario],
+                )
 
-        ax.axhline(95, color="#2ECC71", linewidth=1, linestyle="--", alpha=0.7, label="95%")
-        ax.axhline(85, color="#F39C12", linewidth=1, linestyle="--", alpha=0.7, label="85%")
-        ax.set_xticks(range(len(POP_BIN_LABELS)))
-        ax.set_xticklabels(POP_BIN_LABELS, fontsize=9)
-        ax.set_ylim(0, 108)
-        ax.set_ylabel("Islands with unchanged feasibility (%)")
-        ax.set_xlabel("Target population")
-        ax.set_title(SCENARIO_LABELS[scenario], fontsize=11)
-        ax.grid(axis="y", alpha=0.2)
-
-    axes[0].legend(fontsize=8, loc="lower left")
-    fig.suptitle("Feasibility classification stability vs 500-person benchmark", fontsize=12)
+    ax.axhline(95, color="#555555", linewidth=0.8, linestyle="--")
+    ax.set_xticks(x)
+    ax.set_xticklabels(POP_BIN_LABELS, fontsize=9)
+    ax.set_ylim(0, 110)
+    ax.set_ylabel("Islands with unchanged feasibility (%)")
+    ax.set_xlabel("Target population")
+    ax.set_title("")
+    ax.grid(False)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.legend(loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, -0.15), fontsize=9)
     fig.tight_layout()
     output = FIGURES_ROOT / "Figure_Sx_classification_stability.png"
     fig.savefig(output, bbox_inches="tight")
