@@ -367,7 +367,7 @@ def make_sixregion_figure(scenario_data: dict) -> plt.Figure:
     fig.legend(
         handles=handles,
         loc="lower center", ncol=3, frameon=False, fontsize=8.5,
-        bbox_to_anchor=(0.5, -0.22),
+        bbox_to_anchor=(0.5, -0.05),
     )
     fig.tight_layout()
     return fig

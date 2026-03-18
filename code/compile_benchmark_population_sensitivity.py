@@ -388,8 +388,8 @@ def plot_delta_distribution(run_results_df):
     import matplotlib as mpl
     import numpy as np
 
-    POP_BINS = [500, 1000, 2000, 5000, 10000, float("inf")]
-    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", ">10k"]
+    POP_BINS = [500, 1000, 2000, 5000, 10000]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
     SCENARIO_COLORS = {"output_0": "black", "output_2050": "black"}
     SCENARIO_FILL = {"output_0": "#4393C3", "output_2050": "#D6604D"}
@@ -603,8 +603,8 @@ def plot_actual_population_scatter(run_results_df):
 def plot_viability_gap_change(run_results_df):
     """Show how viability gap shrinks with population while infeasibility persists."""
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
-    POP_BINS = [500, 1000, 2000, 5000, 10000, float("inf")]
-    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", ">10k"]
+    POP_BINS = [500, 1000, 2000, 5000, 10000]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
 
     baseline = run_results_df[run_results_df["population_label"] == "500"][
@@ -696,8 +696,8 @@ def plot_viability_gap_change(run_results_df):
 def plot_classification_stability(run_results_df):
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
 
-    POP_BINS = [500, 1000, 2000, 5000, 10000, float("inf")]
-    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k", ">10k"]
+    POP_BINS = [500, 1000, 2000, 5000, 10000]
+    POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
     SCENARIO_COLORS = {
         "output_0": "#2166AC",
@@ -777,6 +777,103 @@ def plot_classification_stability(run_results_df):
     return output
 
 
+def plot_sixregion_by_population(run_results_df):
+    """Stacked bar chart of Q1-Q6 share at each population stage, one panel per scenario."""
+    FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
+    import matplotlib as mpl
+    import matplotlib.patches as mpatches
+    import numpy as np
+
+    SIX_REGION_SHORT = ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"]
+    SIX_REGION_COLORS_LOCAL = {
+        "Q1": "#012A61",
+        "Q2": "#0B75B3",
+        "Q3": "#89CAEA",
+        "Q4": "#F0D2D2",
+        "Q5": "#DC5654",
+        "Q6": "#982B2D",
+    }
+    # Full names in Q1→Q6 order
+    from benchmark_population_sensitivity_config import SIX_REGION_NAMES
+    SHORT_TO_NAME = dict(zip(SIX_REGION_SHORT, SIX_REGION_NAMES))
+
+    POP_ORDER = POPULATION_STAGE_ORDER          # ["500", "2000", "10000", "actual"]
+    POP_LABELS = ["500\n(benchmark)", "2,000", "10,000", "Actual"]
+    SCENARIO_LIST = ["output_0", "output_2050"]
+
+    mpl.rcParams.update({
+        "font.family": "Arial",
+        "font.size": 7,
+        "axes.linewidth": 0.6,
+        "xtick.major.width": 0.6,
+        "ytick.major.width": 0.6,
+        "xtick.major.size": 3,
+        "ytick.major.size": 3,
+        "xtick.direction": "out",
+        "ytick.direction": "out",
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+    })
+
+    fig, axes = plt.subplots(1, len(SCENARIO_LIST), figsize=(7.2, 3.8), dpi=300, sharey=True)
+    fig.subplots_adjust(wspace=0.1)
+
+    x = np.arange(len(POP_ORDER))
+    bar_width = 0.55
+
+    for ax, scenario in zip(axes, SCENARIO_LIST):
+        df_s = run_results_df[run_results_df["scenario"] == scenario]
+        bottoms = np.zeros(len(POP_ORDER))
+
+        for qi, q in enumerate(SIX_REGION_SHORT):
+            heights = np.array([
+                (df_s[df_s["population_label"] == pop]["six_region_short"] == q).sum()
+                / max(len(df_s[df_s["population_label"] == pop]), 1) * 100
+                for pop in POP_ORDER
+            ])
+            ax.bar(x, heights, bar_width, bottom=bottoms,
+                   color=SIX_REGION_COLORS_LOCAL[q], label=q)
+            for xi, (h, b) in enumerate(zip(heights, bottoms)):
+                if h >= 4:
+                    ax.text(
+                        xi, b + h / 2, f"{h:.0f}%",
+                        ha="center", va="center", fontsize=6.5,
+                        color="white" if qi in (0, 4, 5) else "black",
+                        fontweight="bold",
+                    )
+            bottoms += heights
+
+        # Outline the 500-person benchmark bar
+        ax.axvspan(x[0] - bar_width / 2, x[0] + bar_width / 2,
+                   color="none", edgecolor="black", linewidth=1.2, zorder=3)
+        ax.text(x[0], 102, "benchmark", ha="center", va="bottom", fontsize=6.5)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(POP_LABELS, fontsize=7)
+        ax.set_ylim(0, 110)
+        ax.set_ylabel("Islands (%)" if scenario == SCENARIO_LIST[0] else "", fontsize=7.5)
+        ax.set_xlabel("Target population", fontsize=7.5)
+        ax.set_title(SCENARIO_LABELS[scenario], fontsize=8, pad=4)
+        ax.grid(False)
+
+    handles = [
+        mpatches.Patch(facecolor=SIX_REGION_COLORS_LOCAL[q],
+                       label=f"{q}: {SHORT_TO_NAME[q]}")
+        for q in SIX_REGION_SHORT
+    ]
+    fig.legend(
+        handles=handles,
+        loc="lower center", ncol=3, frameon=False, fontsize=7,
+        bbox_to_anchor=(0.5, -0.20),
+    )
+
+    output = FIGURES_ROOT / "Figure_Sv_sixregion_by_population.png"
+    fig.savefig(output, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+    mpl.rcParams.update(mpl.rcParamsDefault)
+    return output
+
+
 def main():
     args = parse_args()
     ensure_inputs(args.sample_file, args.run_matrix_file)
@@ -804,6 +901,7 @@ def main():
     plot_actual_population_scatter(run_results_df)
     plot_viability_gap_change(run_results_df)
     plot_classification_stability(run_results_df)
+    plot_sixregion_by_population(run_results_df)
     print(f"Compiled {len(run_results_df)} completed sensitivity runs.")
 
 
