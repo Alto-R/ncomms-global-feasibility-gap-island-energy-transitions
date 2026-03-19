@@ -199,6 +199,27 @@ def build_feasibility_table(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_feasibility_figure_print_table(df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for t in THRESHOLDS:
+        s = feasibility_stats(df, t)
+        q10, q25, q50, q75, q90 = np.percentile(s["gap_values"], [10, 25, 50, 75, 90])
+        rows.append({
+            "Threshold": s["threshold_label"],
+            "% Infeasible": s["pct_infeasible"],
+            "% Infeasible CI-lo": s["pct_infeasible_ci_lo"],
+            "% Infeasible CI-hi": s["pct_infeasible_ci_hi"],
+            "Median Gap": round(q50, 4),
+            "P25 Gap": round(q25, 4),
+            "P75 Gap": round(q75, 4),
+            "P10 Gap": round(q10, 4),
+            "P90 Gap": round(q90, 4),
+            "Min Gap": round(np.min(s["gap_values"]), 4),
+            "Max Gap": round(np.max(s["gap_values"]), 4),
+        })
+    return pd.DataFrame(rows)
+
+
 def build_sixregion_table(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for t in THRESHOLDS:
@@ -411,6 +432,8 @@ def main():
         print(f"\n=== Feasibility sensitivity — {sc_label} ===")
         print(feas_table.to_string(index=False))
         print(f"  → {feas_path}")
+        print(f"\n=== Figure feasibility data — {sc_label} ===")
+        print(build_feasibility_figure_print_table(df_sc).to_string(index=False))
 
         # ---- Six-region table ----
         sixr_table = build_sixregion_table(df_sc)

@@ -383,12 +383,172 @@ def write_actual_delta_summary(run_results_df):
     return output
 
 
+def build_lcoe_delta_distribution_frame(run_results_df):
+    pop_bins = [500, 1000, 2000, 5000, 10000]
+    pop_bin_labels = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
+
+    baseline = run_results_df[run_results_df["population_label"] == "500"][
+        ["island_id", "scenario", "tariff_breakeven"]
+    ].rename(columns={"tariff_breakeven": "tariff_breakeven_500"})
+    deltas = run_results_df.merge(baseline, on=["island_id", "scenario"], how="left")
+    deltas = deltas[deltas["population_label"] != "500"].copy()
+    if deltas.empty:
+        return deltas
+
+    deltas["pct_delta_lcoe"] = (
+        (deltas["tariff_breakeven"] - deltas["tariff_breakeven_500"]) / deltas["tariff_breakeven_500"] * 100
+    )
+    deltas = deltas[deltas["pct_delta_lcoe"].abs() <= 100].copy()
+    deltas["pop_bin"] = pd.cut(
+        deltas["target_population"],
+        bins=pop_bins,
+        labels=pop_bin_labels,
+        right=False,
+    )
+    return deltas
+
+
+def build_lcoe_delta_distribution_summary(deltas_df):
+    if deltas_df.empty:
+        return deltas_df
+
+    summary = (
+        deltas_df.groupby(["scenario", "pop_bin"], observed=True)
+        .agg(
+            scenario_label=("scenario", lambda values: SCENARIO_LABELS[values.iloc[0]]),
+            n_runs=("pct_delta_lcoe", "size"),
+            n_islands=("island_id", "nunique"),
+            median_pct_delta_lcoe=("pct_delta_lcoe", "median"),
+            p25_pct_delta_lcoe=("pct_delta_lcoe", lambda values: values.quantile(0.25)),
+            p75_pct_delta_lcoe=("pct_delta_lcoe", lambda values: values.quantile(0.75)),
+            p10_pct_delta_lcoe=("pct_delta_lcoe", lambda values: values.quantile(0.10)),
+            p90_pct_delta_lcoe=("pct_delta_lcoe", lambda values: values.quantile(0.90)),
+            min_pct_delta_lcoe=("pct_delta_lcoe", "min"),
+            max_pct_delta_lcoe=("pct_delta_lcoe", "max"),
+        )
+        .reset_index()
+    )
+    return summary
+
+
+def write_figure_sy_data(run_results_df):
+    TABLES_ROOT.mkdir(parents=True, exist_ok=True)
+    deltas_df = build_lcoe_delta_distribution_frame(run_results_df)
+    if deltas_df.empty:
+        return None, None
+
+    summary_df = build_lcoe_delta_distribution_summary(deltas_df)
+    summary_output = TABLES_ROOT / "Figure_Sy_lcoe_delta_distribution_summary.csv"
+    points_output = TABLES_ROOT / "Figure_Sy_lcoe_delta_distribution_points.csv"
+
+    summary_df.to_csv(summary_output, index=False)
+    deltas_df[
+        [
+            "scenario",
+            "population_label",
+            "pop_bin",
+            "island_id",
+            "display_name",
+            "target_population",
+            "tariff_breakeven_500",
+            "tariff_breakeven",
+            "pct_delta_lcoe",
+        ]
+    ].to_csv(points_output, index=False)
+
+    print("\n=== Figure Sy data - LCOE delta distribution ===")
+    print(summary_df.to_string(index=False))
+    print(f"  summary -> {summary_output}")
+    print(f"  points  -> {points_output}")
+    return summary_output, points_output
+
+
+def build_classification_stability_frame(run_results_df):
+    pop_bins = [500, 1000, 2000, 5000, 10000]
+    pop_bin_labels = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
+
+    baseline = run_results_df[run_results_df["population_label"] == "500"][
+        ["island_id", "scenario", "is_feasible"]
+    ].rename(columns={"is_feasible": "is_feasible_500"})
+
+    others = run_results_df[run_results_df["population_label"] != "500"].copy()
+    others["pop_bin"] = pd.cut(
+        others["target_population"],
+        bins=pop_bins,
+        labels=pop_bin_labels,
+        right=False,
+    )
+
+    merged = others.merge(baseline, on=["island_id", "scenario"], how="inner")
+    merged["unchanged"] = merged["is_feasible"] == merged["is_feasible_500"]
+    return merged
+
+
+def build_classification_stability_summary(stability_df):
+    if stability_df.empty:
+        return stability_df
+
+    summary = (
+        stability_df.groupby(["scenario", "pop_bin"], observed=True)
+        .agg(
+            scenario_label=("scenario", lambda values: SCENARIO_LABELS[values.iloc[0]]),
+            unchanged_count=("unchanged", "sum"),
+            n=("island_id", "nunique"),
+        )
+        .reset_index()
+    )
+    summary["stability_pct"] = summary["unchanged_count"] / summary["n"] * 100
+    summary["changed_count"] = summary["n"] - summary["unchanged_count"]
+    return summary[
+        [
+            "scenario",
+            "scenario_label",
+            "pop_bin",
+            "n",
+            "unchanged_count",
+            "changed_count",
+            "stability_pct",
+        ]
+    ]
+
+
+def write_figure_sx_data(run_results_df):
+    TABLES_ROOT.mkdir(parents=True, exist_ok=True)
+    stability_df = build_classification_stability_frame(run_results_df)
+    if stability_df.empty:
+        return None, None
+
+    summary_df = build_classification_stability_summary(stability_df)
+    summary_output = TABLES_ROOT / "Figure_Sx_classification_stability_data.csv"
+    points_output = TABLES_ROOT / "Figure_Sx_classification_stability_points.csv"
+
+    summary_df.to_csv(summary_output, index=False)
+    stability_df[
+        [
+            "scenario",
+            "population_label",
+            "pop_bin",
+            "island_id",
+            "display_name",
+            "target_population",
+            "is_feasible_500",
+            "is_feasible",
+            "unchanged",
+        ]
+    ].to_csv(points_output, index=False)
+
+    print("\n=== Figure Sx data - Classification stability ===")
+    print(summary_df.to_string(index=False))
+    print(f"  summary -> {summary_output}")
+    print(f"  points  -> {points_output}")
+    return summary_output, points_output
+
+
 def plot_delta_distribution(run_results_df):
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
     import matplotlib as mpl
     import numpy as np
 
-    POP_BINS = [500, 1000, 2000, 5000, 10000]
     POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
     SCENARIO_COLORS = {"output_0": "black", "output_2050": "black"}
@@ -409,24 +569,9 @@ def plot_delta_distribution(run_results_df):
         "axes.spines.right": False,
     })
 
-    baseline = run_results_df[run_results_df["population_label"] == "500"][
-        ["island_id", "scenario", "tariff_breakeven"]
-    ].rename(columns={"tariff_breakeven": "tariff_breakeven_500"})
-    deltas = run_results_df.merge(baseline, on=["island_id", "scenario"], how="left")
-    deltas = deltas[deltas["population_label"] != "500"].copy()
+    deltas = build_lcoe_delta_distribution_frame(run_results_df)
     if deltas.empty:
         return None
-
-    deltas["pct_delta_lcoe"] = (
-        (deltas["tariff_breakeven"] - deltas["tariff_breakeven_500"]) / deltas["tariff_breakeven_500"] * 100
-    )
-    deltas = deltas[deltas["pct_delta_lcoe"].abs() <= 100].copy()
-    deltas["pop_bin"] = pd.cut(
-        deltas["target_population"],
-        bins=POP_BINS,
-        labels=POP_BIN_LABELS,
-        right=False,
-    )
 
     # Figure: 183 mm wide (Nature Comms double-column), 70 mm tall
     fig, axes = plt.subplots(
@@ -696,7 +841,6 @@ def plot_viability_gap_change(run_results_df):
 def plot_classification_stability(run_results_df):
     FIGURES_ROOT.mkdir(parents=True, exist_ok=True)
 
-    POP_BINS = [500, 1000, 2000, 5000, 10000]
     POP_BIN_LABELS = ["500–1k", "1k–2k", "2k–5k", "5k–10k"]
     SCENARIO_LIST = ["output_0", "output_2050"]
     SCENARIO_COLORS = {
@@ -704,32 +848,11 @@ def plot_classification_stability(run_results_df):
         "output_2050": "#D6604D",
     }
 
-    baseline = run_results_df[run_results_df["population_label"] == "500"][
-        ["island_id", "scenario", "is_feasible"]
-    ].rename(columns={"is_feasible": "is_feasible_500"})
-
-    others = run_results_df[run_results_df["population_label"] != "500"].copy()
-    others["pop_bin"] = pd.cut(
-        others["target_population"],
-        bins=POP_BINS,
-        labels=POP_BIN_LABELS,
-        right=False,
-    )
-
-    merged = others.merge(baseline, on=["island_id", "scenario"], how="inner")
-    merged["unchanged"] = merged["is_feasible"] == merged["is_feasible_500"]
-
+    merged = build_classification_stability_frame(run_results_df)
     if merged.empty:
         return None
 
-    stability = (
-        merged.groupby(["scenario", "pop_bin"], observed=True)
-        .agg(
-            stability_pct=("unchanged", lambda x: x.mean() * 100),
-            n=("island_id", "nunique"),
-        )
-        .reset_index()
-    )
+    stability = build_classification_stability_summary(merged)
 
     import numpy as np
     n_bins = len(POP_BIN_LABELS)
@@ -896,6 +1019,8 @@ def main():
     write_reproduction_check(run_results_df, viability_df, baseline_cost_frames)
     write_classification_stability(run_results_df)
     write_actual_delta_summary(run_results_df)
+    write_figure_sx_data(run_results_df)
+    write_figure_sy_data(run_results_df)
     plot_delta_distribution(run_results_df)
     plot_cost_composition(run_results_df)
     plot_actual_population_scatter(run_results_df)
