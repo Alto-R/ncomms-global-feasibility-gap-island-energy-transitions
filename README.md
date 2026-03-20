@@ -117,11 +117,6 @@ The model incorporates realistic cost projections for key technologies:
 - **Recommended**: 32 GB RAM, 16+ core CPU
 - **Storage**: 70+ GB for full CMIP6 data
 
-**Tested Platforms:**
-
-- Windows 11 with Python 3.9, 3.10, 3.11
-- Ubuntu 22.04 with Python 3.9, 3.10, 3.11
-- macOS 14 with Python 3.9, 3.10, 3.11
 
 ## 🔧 Installation
 
