@@ -2,9 +2,15 @@
 
 set -uo pipefail
 
+# Supercomputer layout:
+# master0/island/run_jobs_future_2050_cost_sensitivity.sh
+# master0/island/filtered_island_1898.csv
+# master0/island/disaster_future_2050_advanced.py
+# master0/island/disaster_future_2050_conservative.py
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-RUN_MATRIX_FILE="${RUN_MATRIX_FILE:-$REPO_ROOT/result/future_2050_cost_sensitivity/future_2050_cost_sensitivity_run_matrix.csv}"
+REPO_ROOT="$SCRIPT_DIR"
+PYTHON_SCRIPT_DIR="$REPO_ROOT"
+CSV_FILE="${CSV_FILE:-$REPO_ROOT/filtered_island_1898.csv}"
 LOG_DIR="$REPO_ROOT/logs/future_2050_cost_sensitivity"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -26,7 +32,7 @@ Options:
   --limit N                  Limit the number of executable cases per scenario.
   --max-concurrent N         Maximum concurrent sensitivity cases. Default: 20
   --python-bin PATH          Python executable. Default: python3
-  --run-matrix PATH          Run matrix CSV. Default: result/future_2050_cost_sensitivity/future_2050_cost_sensitivity_run_matrix.csv
+  --csv-file PATH            Island CSV. Default: filtered_island_1898.csv in repo root
   -h, --help                 Show this help message.
 
 Examples:
@@ -83,8 +89,8 @@ parse_args() {
                 PYTHON_BIN="$2"
                 shift 2
                 ;;
-            --run-matrix)
-                RUN_MATRIX_FILE="$2"
+            --csv-file)
+                CSV_FILE="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -117,7 +123,7 @@ run_sensitivity_case() {
 
     if ! (
         cd "$REPO_ROOT"
-        "$PYTHON_BIN" "code/$script_name" \
+        "$PYTHON_BIN" "$PYTHON_SCRIPT_DIR/$script_name" \
             --island_lat "$island_lat" \
             --island_lon "$island_lon" \
             --pop "$target_population"
@@ -125,7 +131,7 @@ run_sensitivity_case() {
         sleep 10
         if ! (
             cd "$REPO_ROOT"
-            "$PYTHON_BIN" "code/$script_name" \
+            "$PYTHON_BIN" "$PYTHON_SCRIPT_DIR/$script_name" \
                 --island_lat "$island_lat" \
                 --island_lon "$island_lon" \
                 --pop "$target_population"
@@ -144,40 +150,60 @@ collect_tasks() {
     local scenario_key=$1
     local task_file=$2
 
-    "$PYTHON_BIN" - "$RUN_MATRIX_FILE" "$scenario_key" "$FORCE" "$LIMIT" "$REPO_ROOT" > "$task_file" <<'PY'
+    "$PYTHON_BIN" - "$CSV_FILE" "$scenario_key" "$FORCE" "$LIMIT" "$REPO_ROOT" > "$task_file" <<'PY'
 import csv
 import os
 import sys
 
-run_matrix_file, scenario_key, force_flag, limit_arg, repo_root = sys.argv[1:6]
+csv_file, scenario_key, force_flag, limit_arg, repo_root = sys.argv[1:6]
 force = force_flag == "1"
 limit = None if limit_arg == "" else int(limit_arg)
 selected = 0
 
-with open(run_matrix_file, newline="", encoding="utf-8") as handle:
+scenario_map = {
+    "output_future_2050_advanced": {
+        "script_name": "disaster_future_2050_advanced.py",
+        "output_dir": "output_future_2050_advanced",
+        "display_name": "disaster_future_2050_advanced",
+    },
+    "output_future_2050_conservative": {
+        "script_name": "disaster_future_2050_conservative.py",
+        "output_dir": "output_future_2050_conservative",
+        "display_name": "disaster_future_2050_conservative",
+    },
+}
+
+config = scenario_map[scenario_key]
+
+with open(csv_file, newline="", encoding="utf-8") as handle:
     reader = csv.DictReader(handle)
     writer = csv.writer(sys.stdout, delimiter="\t", lineterminator="\n")
     for row in reader:
-        if row["scenario"] != scenario_key:
-            continue
+        island_id = row["ID"]
+        latitude = row["Lat"]
+        longitude = row["Long"]
+        target_population = row["pop"]
+        population_label = row["pop"]
+        output_dir = config["output_dir"]
 
-        existing = all(
-            os.path.exists(os.path.join(repo_root, row[key]))
-            for key in ("cost_file", "capacity_file", "results_file")
-        )
+        cost_file = os.path.join(repo_root, output_dir, f"{latitude}_{longitude}_best_cost.csv")
+        capacity_file = os.path.join(repo_root, output_dir, f"{latitude}_{longitude}_capacity.csv")
+        results_file = os.path.join(repo_root, output_dir, f"{latitude}_{longitude}_results.csv")
+
+        existing = all(os.path.exists(path) for path in (cost_file, capacity_file, results_file))
         status = "skip_existing" if (existing and not force) else "run"
 
         writer.writerow(
             [
                 status,
-                row["island_id"],
-                row["latitude"],
-                row["longitude"],
-                row["target_population"],
-                row.get("population_label", row["target_population"]),
-                row["script_name"],
-                row["output_dir"],
-                row.get("display_name", row["scenario"]),
+                island_id,
+                latitude,
+                longitude,
+                target_population,
+                population_label,
+                config["script_name"],
+                output_dir,
+                config["display_name"],
             ]
         )
 
@@ -197,14 +223,15 @@ run_scenario_batches() {
 
     echo "Scenario: $scenario_label ($scenario_key)" >> "$MAIN_LOG"
     echo "Python: $PYTHON_BIN" >> "$MAIN_LOG"
-    echo "Run matrix: $RUN_MATRIX_FILE" >> "$MAIN_LOG"
+    echo "Python script dir: $PYTHON_SCRIPT_DIR" >> "$MAIN_LOG"
+    echo "CSV file: $CSV_FILE" >> "$MAIN_LOG"
     echo "Max concurrent runs: $MAX_CONCURRENT_RUNS" >> "$MAIN_LOG"
     echo "Force rerun: $FORCE" >> "$MAIN_LOG"
     echo "Limit: ${LIMIT:-none}" >> "$MAIN_LOG"
     echo "============================================================" >> "$MAIN_LOG"
 
-    if [ ! -f "$RUN_MATRIX_FILE" ]; then
-        echo "Run matrix missing: $RUN_MATRIX_FILE" | tee -a "$MAIN_LOG"
+    if [ ! -f "$CSV_FILE" ]; then
+        echo "CSV file missing: $CSV_FILE" | tee -a "$MAIN_LOG"
         return 1
     fi
 
