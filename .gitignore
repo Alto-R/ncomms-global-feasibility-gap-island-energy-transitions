@@ -1,9 +1,11 @@
-result/output_0.tar.gz
-result/output_2020.tar.gz
-result/output_2050.tar.gz
-result/output_future_2030.tar.gz
-result/output_future_2040.tar.gz
-result/output_future_2050.tar.gz
+result/output_0
+result/output_2020
+result/output_2050
+result/output_future_2030
+result/output_future_2040
+result/output_future_2050
+
+demand_get/data
 
 .mcp.json
 
@@ -17,6 +19,7 @@ bfg.jar
 .claude
 
 result/benchmark_population_sensitivity
+result/future_2050_viability_sensitivity
 
 validation/output
 
@@ -26,3 +29,5 @@ data
 
 AGENT.md
 CLAUDE.md
+
+source_data.xlsx
