@@ -23,3 +23,6 @@ validation/output
 *.csv
 
 data
+
+AGENT.md
+CLAUDE.md
