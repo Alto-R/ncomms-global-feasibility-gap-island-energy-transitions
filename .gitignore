@@ -4,6 +4,7 @@ result/output_2050
 result/output_future_2030
 result/output_future_2040
 result/output_future_2050
+result/island_windspeed_data
 
 demand_get/data
 
@@ -27,7 +28,5 @@ validation/output
 
 data
 
-AGENT.md
-CLAUDE.md
 
 source_data.xlsx

@@ -461,6 +461,100 @@ def generate_fig4():
 
 
 # ============================================================
+# Fig 3e: Climate resilience cost drivers regression
+# ============================================================
+def generate_fig3e():
+    """Fig 3e: Regression coefficients for climate resilience cost drivers."""
+    print("  Generating Fig3e (climate resilience regression)...")
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.linear_model import LinearRegression
+    import statsmodels.api as sm
+
+    islands_df = load_island_origin()  # kept for reference
+    windspeed_dir = os.path.join(RESULT_DIR, 'island_windspeed_data')
+
+    scenarios = {
+        2020: {'output_dir': os.path.join(RESULT_DIR, 'output_2020'),
+               'cost_file': os.path.join(RESULT_DIR, 'island_cost_summary_2020.csv')},
+        2050: {'output_dir': os.path.join(RESULT_DIR, 'output_2050'),
+               'cost_file': os.path.join(RESULT_DIR, 'island_cost_summary_2050.csv')},
+    }
+
+    results_data = []
+    for year, config in scenarios.items():
+        cost_df = pd.read_csv(config['cost_file'])
+        for _, cr in cost_df.iterrows():
+            lat, lon = cr['lat'], cr['lon']
+            ws_file = os.path.join(windspeed_dir, f"{lat}_{lon}_{year}_windspeed.csv")
+            out_file = os.path.join(config['output_dir'], f"{lat}_{lon}_results.csv")
+            dem_file = os.path.join(DEMAND_DIR, f"demand_{lat}_{lon}.csv")
+
+            if not all(os.path.exists(f) for f in [ws_file, out_file, dem_file]):
+                continue
+            try:
+                wind_df = pd.read_csv(ws_file)
+                wind_col = f'Wind_Speed_{year}' if f'Wind_Speed_{year}' in wind_df.columns else wind_df.columns[0]
+                ws = wind_df[wind_col]
+                pdi = (ws[ws > 20] ** 3).sum()
+
+                demand_df = pd.read_csv(dem_file)
+                heating_demand = demand_df.get('heating_demand', pd.Series(0)).sum()
+
+                output_df = pd.read_csv(out_file)
+                e_re = output_df.get('WT', pd.Series(0)).sum() + output_df.get('PV', pd.Series(0)).sum() + output_df.get('WEC', pd.Series(0)).sum()
+                e_chp = output_df.get('CHP_electric_output', pd.Series(0)).sum()
+                rp = e_re / (e_re + e_chp) if (e_re + e_chp) > 0 else 0
+
+                results_data.append({
+                    'Year': year, 'lat': lat, 'lon': lon,
+                    'PDI': pdi, 'Heating_Demand': heating_demand, 'Renewable_Penetration': rp,
+                    'Renewable_Cost': cr.get('renewable_cost_per_capita', 0),
+                    'Total_Storage_Investment': cr.get('storage_cost_per_capita', 0),
+                    'LNG_Cost': cr.get('lng_cost_per_capita', 0),
+                })
+            except Exception:
+                continue
+
+    if not results_data:
+        print("    WARNING: No data for Fig3e regression!")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(results_data).dropna()
+    # Remove all-zero cost rows
+    mask = (df['Renewable_Cost'] == 0) & (df['Total_Storage_Investment'] == 0) & (df['LNG_Cost'] == 0)
+    df = df[~mask]
+    print(f"    Processed {len(df)} records for regression")
+
+    feature_names = ['PDI', 'Heating_Demand', 'Renewable_Penetration']
+    target_names = ['Renewable_Cost', 'Total_Storage_Investment', 'LNG_Cost']
+
+    rows = []
+    for target in target_names:
+        X = df[feature_names]
+        y = df[target]
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X_const = sm.add_constant(X_scaled)
+        model = sm.OLS(y, X_const).fit()
+
+        for i, feat in enumerate(feature_names):
+            rows.append({
+                'Dependent_Variable': target,
+                'Independent_Variable': feat,
+                'Coefficient': model.params[i + 1],
+                'Std_Error': model.bse[i + 1],
+                't_Statistic': model.tvalues[i + 1],
+                'p_Value': model.pvalues[i + 1],
+                'Significance': '***' if model.pvalues[i + 1] < 0.001 else '**' if model.pvalues[i + 1] < 0.01 else '*' if model.pvalues[i + 1] < 0.05 else '',
+                'R_Squared': model.rsquared,
+            })
+
+    result = pd.DataFrame(rows)
+    print(f"    -> {len(result)} coefficient rows")
+    return result
+
+
+# ============================================================
 # Supplementary Figures
 # ============================================================
 def generate_supp_fig2_3():
@@ -533,36 +627,123 @@ def generate_supp_fig4():
     return result
 
 
-def generate_supp_fig5(fig1c_df):
-    """Supp Fig 5: Multicollinearity diagnosis - just return the regression data."""
-    print("  Generating SuppFig5 (multicollinearity)...")
-    # The VIF and correlation data comes from the same regression variables
-    # We provide the coefficient table which implicitly contains this info
-    return fig1c_df  # Same as Fig1c data
+def generate_supp_fig5():
+    """Supp Fig 5: Multicollinearity diagnosis — VIF values."""
+    print("  Generating SuppFig5 (VIF multicollinearity)...")
+    from sklearn.preprocessing import StandardScaler
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+    cost_df = load_cost_summary('Ideal')
+    rows = []
+    for _, island in cost_df.iterrows():
+        lat, lon = island['lat'], island['lon']
+        demand_file = os.path.join(DEMAND_DIR, f'demand_{lat}_{lon}.csv')
+        output_file = os.path.join(RESULT_DIR, 'output_0', f'{lat}_{lon}_results.csv')
+        if not os.path.exists(demand_file) or not os.path.exists(output_file):
+            continue
+        ddf = pd.read_csv(demand_file)
+        dt = pd.date_range(start='2020-01-01', periods=len(ddf), freq='3h')
+        ddf['month'] = dt.month
+
+        h_total = ddf['heating_demand'].sum()
+        h_m = ddf.groupby('month')['heating_demand'].mean()
+        h_f = h_m[h_m > 0.01]
+        h_var = h_f.std() / h_f.mean() if len(h_f) >= 2 and h_f.mean() > 0 else 0
+        c_total = ddf['cooling_demand'].sum()
+        c_m = ddf.groupby('month')['cooling_demand'].mean()
+        c_f = c_m[c_m > 0.01]
+        c_var = c_f.std() / c_f.mean() if len(c_f) >= 2 and c_f.mean() > 0 else 0
+
+        odf = pd.read_csv(output_file)
+        odt = pd.date_range(start='2020-01-01', periods=len(odf), freq='3h')
+        odf['month'] = odt.month
+
+        re_stats = {}
+        for name, col in [('wind', 'WT'), ('pv', 'PV'), ('wave', 'WEC')]:
+            if col in odf.columns:
+                monthly = odf.groupby('month')[col].mean()
+                filt = monthly[monthly > 0.01]
+                seasonal = filt.std() / filt.mean() if len(filt) >= 2 else 0
+                daily_mean = odf.groupby(odt.dayofyear)[col].mean()
+                daily_std = odf.groupby(odt.dayofyear)[col].std()
+                valid = daily_mean > 0.1
+                daily_cv = (daily_std[valid] / daily_mean[valid]).mean() if valid.any() else 0
+            else:
+                seasonal, daily_cv = 0, 0
+            re_stats[f'{name}_seasonal'] = seasonal
+            re_stats[f'{name}_daily'] = daily_cv
+
+        rows.append({
+            'HD': h_total, 'HDV': h_var, 'CD': c_total, 'CDV': c_var,
+            'WTS': re_stats['wind_seasonal'], 'WTD': re_stats['wind_daily'],
+            'PVS': re_stats['pv_seasonal'], 'PVD': re_stats['pv_daily'],
+            'WECS': re_stats['wave_seasonal'], 'WECD': re_stats.get('wave_daily', 0),
+        })
+
+    df = pd.DataFrame(rows).fillna(0)
+    print(f"    Computed variables for {len(df)} islands")
+
+    # Stage 1: all 10 variables
+    stage1_vars = ['HD', 'HDV', 'CD', 'CDV', 'WTS', 'WTD', 'PVS', 'PVD', 'WECS', 'WECD']
+    X1 = StandardScaler().fit_transform(df[stage1_vars])
+    vif1 = [{'Stage': 'Stage1_All_10_Variables', 'Variable': stage1_vars[i],
+             'VIF': variance_inflation_factor(X1, i)} for i in range(len(stage1_vars))]
+
+    # Stage 2: drop WECD (high VIF or removed in fig1_3.py)
+    stage2_vars = ['HD', 'HDV', 'CD', 'CDV', 'WTS', 'WTD', 'PVS', 'PVD', 'WECS']
+    X2 = StandardScaler().fit_transform(df[stage2_vars])
+    vif2 = [{'Stage': 'Stage2_Final_9_Variables', 'Variable': stage2_vars[i],
+             'VIF': variance_inflation_factor(X2, i)} for i in range(len(stage2_vars))]
+
+    result = pd.DataFrame(vif1 + vif2)
+    print(f"    -> {len(result)} VIF rows")
+    return result
 
 
 def generate_supp_fig6():
-    """Supp Fig 6: Regional demand/capacity pie charts."""
-    print("  Generating SuppFig6 (regional demand/capacity)...")
+    """Supp Fig 6: Regional heating/cooling demand + WT/PV/WEC capacity pie charts."""
+    print("  Generating SuppFig6 (regional demand + capacity pies)...")
     cost_df = load_cost_summary('Ideal')
+
+    # Part 1: Regional heating/cooling demand averages
+    demand_rows = []
+    for _, island in cost_df.iterrows():
+        lat, lon = island['lat'], island['lon']
+        demand_file = os.path.join(DEMAND_DIR, f'demand_{lat}_{lon}.csv')
+        if not os.path.exists(demand_file):
+            continue
+        ddf = pd.read_csv(demand_file)
+        demand_rows.append({
+            'lat': lat, 'lon': lon,
+            'IPCC_Region': island['IPCC_Region_Code'],
+            'Avg_Heating_Demand': ddf['heating_demand'].mean(),
+            'Avg_Cooling_Demand': ddf['cooling_demand'].mean(),
+        })
+    demand_df = pd.DataFrame(demand_rows)
+    regional_demand = demand_df.groupby('IPCC_Region').agg(
+        Avg_Heating_Demand=('Avg_Heating_Demand', 'mean'),
+        Avg_Cooling_Demand=('Avg_Cooling_Demand', 'mean'),
+        Island_Count=('lat', 'count'),
+    ).reset_index()
+    # Filter regions with >= 10 islands (matching supplement_4.ipynb)
+    regional_demand = regional_demand[regional_demand['Island_Count'] >= 10]
+
+    # Part 2: Regional WT/PV/WEC capacity averages
     cap_df = load_capacity('Ideal')
+    cap_df = cap_df.merge(cost_df[['lat', 'lon', 'IPCC_Region_Code']], on=['lat', 'lon'], how='left')
+    re_cols = ['WT', 'PV', 'WEC']
+    available = [c for c in re_cols if c in cap_df.columns]
+    regional_cap = cap_df.groupby('IPCC_Region_Code')[available].mean().reset_index()
+    regional_cap = regional_cap.rename(columns={'IPCC_Region_Code': 'IPCC_Region'})
+    for c in available:
+        regional_cap = regional_cap.rename(columns={c: f'Avg_Capacity_{c}_MW'})
+    # Filter same regions
+    regional_cap = regional_cap[regional_cap['IPCC_Region'].isin(regional_demand['IPCC_Region'])]
 
-    # Merge capacity with IPCC region
-    cap_df = cap_df.merge(
-        cost_df[['lat', 'lon', 'IPCC_Region_Code']],
-        on=['lat', 'lon'], how='left'
-    )
-
-    # Aggregate capacity by region
-    cap_cols = ['PV', 'WT', 'WEC', 'ESS', 'TES', 'CES', 'CHP', 'AC', 'EB']
-    available_cols = [c for c in cap_cols if c in cap_df.columns]
-    regional = cap_df.groupby('IPCC_Region_Code')[available_cols].mean().reset_index()
-    regional = regional.rename(columns={'IPCC_Region_Code': 'IPCC_Region'})
-    for c in available_cols:
-        regional = regional.rename(columns={c: f'Avg_Capacity_{c}_MW'})
-
-    print(f"    -> {len(regional)} regions")
-    return regional
+    # Merge both parts
+    result = regional_demand.merge(regional_cap, on='IPCC_Region', how='outer')
+    print(f"    -> {len(result)} regions")
+    return result
 
 
 def generate_supp_fig7():
@@ -683,6 +864,93 @@ def generate_supp_fig13():
     return result
 
 
+def generate_supp_fig12_regression():
+    """Supp Fig 12: Regression of cost-reduction determinants."""
+    print("  Generating SuppFig12_regression (tariff reduction regression)...")
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.linear_model import LinearRegression
+    from scipy import stats as scipy_stats
+
+    cost_pc_cols = [
+        'renewable_cost_per_capita', 'storage_cost_per_capita',
+        'lng_cost_per_capita', 'other_equipment_cost_per_capita',
+        'discard_cost_per_capita', 'load_shedding_cost_per_capita'
+    ]
+
+    df_base = pd.read_csv(os.path.join(RESULT_DIR, 'island_cost_summary_2050.csv'))
+    df_comp = pd.read_csv(os.path.join(RESULT_DIR, 'island_cost_summary_future_2050.csv'))
+
+    viability_file = os.path.join(RESULT_DIR, 'island_viability_summary_electric.csv')
+    df_viab = pd.read_csv(viability_file)
+    df_v_base = df_viab[df_viab['scenario'] == 'output_2050'].copy()
+    df_v_comp = df_viab[df_viab['scenario'] == 'output_future_2050'].copy()
+
+    df_base['key'] = df_base['lat'].astype(str) + '_' + df_base['lon'].astype(str)
+    df_comp['key'] = df_comp['lat'].astype(str) + '_' + df_comp['lon'].astype(str)
+    df_v_base['key'] = df_v_base['lat'].astype(str) + '_' + df_v_base['lon'].astype(str)
+    df_v_comp['key'] = df_v_comp['lat'].astype(str) + '_' + df_v_comp['lon'].astype(str)
+
+    merged = pd.merge(
+        df_base[['key', 'lat', 'lon'] + cost_pc_cols],
+        df_comp[['key'] + cost_pc_cols],
+        on='key', suffixes=('_base', '_compare')
+    )
+    tariff_merged = pd.merge(
+        df_v_base[['key', 'tariff_breakeven']],
+        df_v_comp[['key', 'tariff_breakeven']],
+        on='key', suffixes=('_base', '_compare')
+    )
+    merged = pd.merge(merged, tariff_merged, on='key')
+
+    # Compute cost shares and tariff reduction
+    merged['total_cost_base'] = merged[[f'{c}_base' for c in cost_pc_cols]].sum(axis=1)
+    merged['renewable_pct'] = merged['renewable_cost_per_capita_base'] / merged['total_cost_base'] * 100
+    merged['storage_pct'] = merged['storage_cost_per_capita_base'] / merged['total_cost_base'] * 100
+    merged['lng_pct'] = merged['lng_cost_per_capita_base'] / merged['total_cost_base'] * 100
+    merged['tariff_reduction_pct'] = (merged['tariff_breakeven_base'] - merged['tariff_breakeven_compare']) / merged['tariff_breakeven_base'] * 100
+
+    # Filter positive reduction
+    data = merged[merged['tariff_reduction_pct'] > 0].copy()
+    X_vars = ['renewable_pct', 'storage_pct', 'lng_pct']
+    X = data[X_vars].dropna()
+    y = data['tariff_reduction_pct'].loc[X.index]
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    model = LinearRegression()
+    model.fit(X_scaled, y)
+    y_pred = model.predict(X_scaled)
+    from sklearn.metrics import r2_score
+    r2 = r2_score(y, y_pred)
+
+    # Significance testing
+    n, k = len(X), len(X_vars)
+    df_resid = n - k - 1
+    mse = np.sum((y - y_pred) ** 2) / df_resid
+    X_with_int = np.column_stack([np.ones(n), X_scaled])
+    cov = mse * np.linalg.inv(X_with_int.T @ X_with_int)
+    se = np.sqrt(np.diag(cov)[1:])
+    t_stats = model.coef_ / se
+    p_vals = 2 * (1 - scipy_stats.t.cdf(np.abs(t_stats), df_resid))
+
+    rows = []
+    for i, var in enumerate(X_vars):
+        rows.append({
+            'Variable': var,
+            'Coefficient': model.coef_[i],
+            'Std_Error': se[i],
+            't_Statistic': t_stats[i],
+            'p_Value': p_vals[i],
+            'Significance': '***' if p_vals[i] < 0.001 else '**' if p_vals[i] < 0.01 else '*' if p_vals[i] < 0.05 else '',
+            'R_Squared': r2,
+            'N_Samples': n,
+        })
+
+    result = pd.DataFrame(rows)
+    print(f"    -> {len(result)} coefficient rows, R2={r2:.4f}, N={n}")
+    return result
+
+
 def generate_supp_fig14():
     """Supp Fig 14: Population benchmark sensitivity analysis."""
     print("  Generating SuppFig14 (population sensitivity)...")
@@ -766,17 +1034,27 @@ def main():
     sheets['Fig1c'] = fig1c_data
     sheets['Fig2'] = generate_fig2()
     sheets['Fig3'] = generate_fig3()
+    sheets['Fig3e'] = generate_fig3e()
     sheets['Fig4'] = generate_fig4()
 
     # Supplementary figures
     sheets['SuppFig2_3'] = generate_supp_fig2_3()
     sheets['SuppFig4'] = generate_supp_fig4()
-    sheets['SuppFig5'] = generate_supp_fig5(fig1c_data)
+    sheets['SuppFig5'] = generate_supp_fig5()
     sheets['SuppFig6'] = generate_supp_fig6()
     sheets['SuppFig7'] = generate_supp_fig7()
-    # SuppFig8 = same as Fig2
-    # SuppFig9_10 = same as Fig4
+
+    # SuppFig8 = same data as Fig2 (different visualization)
+    sheets['SuppFig8'] = pd.DataFrame({
+        'Note': ['Source data is the same as Fig2 sheet (feasibility classification across all scenarios).']
+    })
+    # SuppFig9_10 = same data as Fig4 (different visualization)
+    sheets['SuppFig9_10'] = pd.DataFrame({
+        'Note': ['Source data is the same as Fig4 sheet (technological progress scenarios).']
+    })
+
     sheets['SuppFig11_12'] = generate_supp_fig11_12()
+    sheets['SuppFig12_regression'] = generate_supp_fig12_regression()
     sheets['SuppFig13'] = generate_supp_fig13()
 
     # SuppFig14: population sensitivity (multiple sub-sheets)
