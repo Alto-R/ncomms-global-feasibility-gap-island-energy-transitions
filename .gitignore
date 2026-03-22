@@ -25,6 +25,7 @@ result/future_2050_viability_sensitivity
 validation/output
 
 *.csv
+*.pkl
 
 data
 
