@@ -30,7 +30,7 @@ def generate_island_cost_summary(scenario, investment_cost, fixed_om_cost, base_
     output_dir_scenario = scenario
     island_capacity_file = f'{base_dir}/island_capacity_{output_dir_scenario}.csv'
     output_dir = f'{base_dir}/output_{output_dir_scenario}'
-    population_file = '../visualization/filtered_island_1898.csv'  # 相对于base_dir的路径
+    population_file = f'{base_dir}/filtered_island_1898.csv'  # 相对于base_dir的路径
 
     print(f"处理情景: {scenario}")
     print(f"容量文件: {island_capacity_file}")
@@ -207,7 +207,7 @@ def generate_island_cost_summary(scenario, investment_cost, fixed_om_cost, base_
     def add_ipcc_regions(df):
         try:
             # 尝试读取IPCC区域数据
-            ipcc_file = '../visualization/IPCC-WGI-reference-regions-v4.geojson'
+            ipcc_file = '../data/IPCC-WGI-reference-regions-v4.geojson'
             if not os.path.exists(ipcc_file):
                 print(f"警告: IPCC区域文件不存在: {ipcc_file}")
                 return df

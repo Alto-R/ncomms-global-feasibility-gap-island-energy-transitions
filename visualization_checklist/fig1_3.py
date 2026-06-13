@@ -46,7 +46,7 @@ def get_cost_variable_names():
             'display_name': 'Energy Storage System Cost',
             'short_name': 'ESC',
             'original_name': 'Storage Cost',
-            'color': '#55A868'
+            'color': '#009988'
         },
         'Log LNG Cost': {
             'display_name': 'Conventional Generation Cost',

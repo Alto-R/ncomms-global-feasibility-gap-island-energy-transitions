@@ -1,33 +1,54 @@
-result/output_0
-result/output_2020
-result/output_2050
-result/output_future_2030
-result/output_future_2040
-result/output_future_2050
-result/island_windspeed_data
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+venv/
 
-demand_get/data
+# ---------------------------------------------------------------------------
+# Editors / IDE / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
+# ---------------------------------------------------------------------------
+# Tooling / local agent artifacts (never publish)
+# ---------------------------------------------------------------------------
+.claude/
 .mcp.json
-
-.claude
-
+.happy-canvas/
 bfg.jar
 
-*__pycache__
+# ---------------------------------------------------------------------------
+# Large raw simulation outputs
+# (stored on the G: drive / provided separately, not version-controlled)
+# ---------------------------------------------------------------------------
+result/output_0/
+result/output_2020/
+result/output_2050/
+result/output_future_2030/
+result/output_future_2040/
+result/output_future_2050/
+result/island_windspeed_data/
+result/benchmark_population_sensitivity/
+result/future_2050_viability_sensitivity/
+validation/output/
+demand_get/data/
+data/
 
-.vscode
-.claude
-
-result/benchmark_population_sensitivity
-result/future_2050_viability_sensitivity
-
-validation/output
-
+# ---------------------------------------------------------------------------
+# Data & generated figures (regenerated from code; provided separately)
+# ---------------------------------------------------------------------------
 *.csv
 *.pkl
-
-data
-
-
+*.nc
+*.geojson
+*.png
 source_data.xlsx

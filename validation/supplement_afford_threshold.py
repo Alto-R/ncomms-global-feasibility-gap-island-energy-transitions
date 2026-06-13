@@ -10,7 +10,7 @@ Formula:
     tariff_affordable = income_per_capita_2020 * threshold / consumption_pc_kwh
 
 Run from project root:
-    python visualization/supplement_afford_threshold.py
+    python validation/supplement_afford_threshold.py
 
 Outputs (all written to validation/):
     validation/Table_feasibility_threshold_sensitivity_{scenario}.csv
@@ -193,8 +193,8 @@ def build_feasibility_table(df: pd.DataFrame) -> pd.DataFrame:
             "% Infeasible": s["pct_infeasible"],
             "% Infeasible CI-lo (95%)": s["pct_infeasible_ci_lo"],
             "% Infeasible CI-hi (95%)": s["pct_infeasible_ci_hi"],
-            "Median Viability Gap ($/kWh)": s["median_gap"],
-            "Mean Viability Gap ($/kWh)": s["mean_gap"],
+            "Median Viability Gap (USD kWh⁻¹)": s["median_gap"],
+            "Mean Viability Gap (USD kWh⁻¹)": s["mean_gap"],
         })
     return pd.DataFrame(rows)
 
@@ -251,9 +251,18 @@ def make_feasibility_figure(scenario_data: dict) -> plt.Figure:
     if n_sc == 1:
         axes = axes.reshape(2, 1)
 
+    # Bold panel labels in reading order (top row first, then bottom row).
+    _PANEL = "abcdefghijklmnop"
+
+    def _panel_label(ax, letter):
+        ax.text(-0.15, 1.06, letter, transform=ax.transAxes,
+                fontsize=14, fontweight="bold", va="bottom", ha="left")
+
     for col, (sc_key, (label, stats_list)) in enumerate(scenario_data.items()):
         ax_bar = axes[0, col]
         ax_vio = axes[1, col]
+        _panel_label(ax_bar, _PANEL[col])
+        _panel_label(ax_vio, _PANEL[n_sc + col])
 
         pct_vals = [s["pct_infeasible"] for s in stats_list]
         gap_list = [s["gap_values"] for s in stats_list]
@@ -305,7 +314,7 @@ def make_feasibility_figure(scenario_data: dict) -> plt.Figure:
         ax_vio.axhline(0, color="red", linestyle="--", linewidth=0.8, alpha=0.8)
         ax_vio.set_xticks(x)
         ax_vio.set_xticklabels(THRESHOLD_LABELS, fontsize=9)
-        ax_vio.set_ylabel("Feasibility gap ($/kWh)")
+        ax_vio.set_ylabel("Feasibility gap (USD kWh$^{-1}$)")
         ax_vio.set_title("", fontsize=10, pad=4)
         ax_vio.spines[["top", "right"]].set_visible(False)
 
@@ -402,7 +411,7 @@ def main():
     if not VIABILITY_CSV.exists():
         sys.exit(
             f"ERROR: Cannot find {VIABILITY_CSV}\n"
-            "Run from project root: python visualization/supplement_afford_threshold.py"
+            "Run from project root: python validation/supplement_afford_threshold.py"
         )
 
     df_all = pd.read_csv(VIABILITY_CSV)

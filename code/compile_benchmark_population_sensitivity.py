@@ -638,7 +638,7 @@ def plot_delta_distribution(run_results_df):
         #     ha="right", va="top", fontsize=6, color="#555555",
         # )
 
-    axes[0].set_ylabel("%\u0394LCOE vs 500-person benchmark", fontsize=7.5)
+    axes[0].set_ylabel("\u0394LCOE vs 500-person benchmark (%)", fontsize=7.5)
     axes[1].set_ylabel("")
 
     # Shared legend
@@ -735,7 +735,7 @@ def plot_actual_population_scatter(run_results_df):
     plt.xscale("log")
     plt.axhline(0, color="#666666", linewidth=1, linestyle="--")
     plt.xlabel("Actual population")
-    plt.ylabel("%Delta LCOE: actual population vs 500 benchmark")
+    plt.ylabel("ΔLCOE: actual population vs 500 benchmark (%)")
     plt.title("")
     plt.legend(loc="lower center", bbox_to_anchor=(0.5, -0.18), ncol=2, frameon=False)
     plt.tight_layout()
@@ -817,7 +817,7 @@ def plot_viability_gap_change(run_results_df):
         ax.set_xticks(range(len(POP_BIN_LABELS)))
         ax.set_xticklabels(POP_BIN_LABELS, fontsize=9)
         ax.set_xlabel("Target population")
-        ax.set_ylabel("Change in viability gap ($/kWh)" if scenario == SCENARIO_LIST[0] else "")
+        ax.set_ylabel("Change in viability gap (USD kWh$^{-1}$)" if scenario == SCENARIO_LIST[0] else "")
         ax.set_title("")
         ax.grid(axis="y", alpha=0.2)
 

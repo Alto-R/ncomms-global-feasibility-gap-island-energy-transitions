@@ -485,7 +485,7 @@ def draw_lcoe_distribution(ax, common_metric_long_df, available_scenarios):
 
     ax.set_xticks(positions)
     ax.set_xticklabels([scenario["label"] for scenario in available_scenarios], rotation=20, ha="right", fontsize=6.5)
-    ax.set_ylabel("LCOE", fontsize=7.5)
+    ax.set_ylabel("LCOE (USD kWh$^{-1}$)", fontsize=7.5)
     ax.set_xlabel("")
     ax.grid(False)
 
@@ -528,6 +528,18 @@ def plot_main_figure(common_metric_long_df, scenario_summary_df, available_scena
 
     draw_lcoe_distribution(axes[0], common_metric_long_df, available_scenarios)
     draw_infeasible_share(axes[1], scenario_summary_df, available_scenarios)
+
+    for ax, label in zip(axes, ["a", "b"]):
+        ax.text(
+            -0.18,
+            1.02,
+            label,
+            transform=ax.transAxes,
+            fontsize=11,
+            fontweight="bold",
+            va="bottom",
+            ha="left",
+        )
 
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight", dpi=300)

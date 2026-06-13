@@ -195,8 +195,8 @@ if len(merged_data) > 0:
                 center=0, square=True, linewidths=.5, cbar_kws={"shrink": .8}, ax=ax1)
     ax1.set_title('Correlation Matrix of Independent Variables', fontsize=14, fontweight='bold')
 
-    # VIF柱状图
-    colors_vif = ['red' if vif >= 10 else 'orange' if vif >= 5 else 'green' for vif in vif_data['VIF']]
+    # VIF柱状图（colour-blind-safe palette: avoid red/green pairing, Nature Comms checklist）
+    colors_vif = ['#C44E52' if vif >= 10 else '#DD8452' if vif >= 5 else '#009988' for vif in vif_data['VIF']]
     bars = ax2.bar(range(len(vif_data)), vif_data['VIF'], color=colors_vif, alpha=0.7, edgecolor='black')
     ax2.set_xlabel('Variables', fontsize=12, fontweight='bold')
     ax2.set_ylabel('VIF Value', fontsize=12, fontweight='bold')

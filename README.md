@@ -313,7 +313,7 @@ To reproduce manuscript results:
    - Compile optimization outputs across scenarios
    - Calculate summary statistics and performance metrics
 
-4. **Visualize results** in `visualization/` folder
+4. **Visualize results** in `visualization_checklist/` folder
    - Run visualization scripts to reproduce manuscript figures
    - Scripts correspond to figures: `fig1_*.ipynb` → Figure 1, `fig2_*.ipynb` → Figure 2, etc.
 

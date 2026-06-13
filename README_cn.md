@@ -313,7 +313,7 @@ nohup ./run_jobs_all.sh > logs/run_tasks.log 2>&1 &
    - 汇编各情景的优化输出
    - 计算汇总统计和性能指标
 
-4. **可视化结果** 在 `visualization/` 文件夹中
+4. **可视化结果** 在 `visualization_checklist/` 文件夹中
    - 运行可视化脚本重现手稿图表
    - 脚本对应图表: `fig1_*.ipynb` → 图1, `fig2_*.ipynb` → 图2, 等
 
