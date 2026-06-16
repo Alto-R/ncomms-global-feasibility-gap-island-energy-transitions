@@ -51,4 +51,5 @@ data/
 *.nc
 *.geojson
 *.png
+*.pdf
 source_data.xlsx

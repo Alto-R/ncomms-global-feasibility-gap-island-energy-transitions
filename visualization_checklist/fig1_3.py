@@ -9,6 +9,9 @@ import os
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 
+# 切换到脚本所在目录，使所有相对路径（../result 等）不依赖启动时的工作目录
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 
 def get_significance_stars(p_value):
     """根据p值返回显著性星号"""
@@ -81,7 +84,7 @@ def run_island_energy_cost_analysis():
     This function performs a comprehensive regression analysis and multicollinearity check for island energy system costs.
     """
     # --- 0. 环境设置 (Environment Setup) ---
-    sns.set(style="white", rc={'figure.dpi': 300})  # 使用white样式避免网格线
+    sns.set(style="white", rc={'figure.dpi': 600})  # 使用white样式避免网格线
 
     # 获取成本变量名映射
     cost_mapping = get_cost_variable_names()
@@ -709,7 +712,7 @@ def run_island_energy_cost_analysis():
             wspace=0.4,  # 列间距（水平间距），增加以适应更窄的子图
             hspace=0.4   # 行间距（垂直间距），减小以适应更高的空间
         )
-        plt.savefig(f'regression/{filename}', dpi=500, bbox_inches='tight')
+        plt.savefig(f'regression/{filename}', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"{stage_name} 多元回归标准化系数图已保存为 {filename}")
 
@@ -750,7 +753,7 @@ def run_island_energy_cost_analysis():
 
         plt.tight_layout()
         legend_filename = f'coefficient_legend_{stage_name.lower().replace(" ", "_")}.png'
-        plt.savefig(f'regression/{legend_filename}', dpi=500, bbox_inches='tight')
+        plt.savefig(f'regression/{legend_filename}', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"{stage_name} 系数图图例已保存为 {legend_filename}")
 
@@ -844,7 +847,7 @@ def run_island_energy_cost_analysis():
         plt.suptitle(f'{stage_name}: Partial Regression Plots for {display_name}',
                      fontsize=16, fontfamily='Arial', y=0.98)
         plt.tight_layout()
-        plt.savefig(f'regression/{filename}', dpi=500, bbox_inches='tight')
+        plt.savefig(f'regression/{filename}', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"{stage_name} 偏回归图已保存为 {filename}")
 
@@ -886,7 +889,7 @@ def run_island_energy_cost_analysis():
         ax2.legend()
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.97])
-        plt.savefig(f'regression/{filename}', dpi=500, bbox_inches='tight')
+        plt.savefig(f'regression/{filename}', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"{stage_name} 多重共线性检验图已保存为 {filename}")
 
