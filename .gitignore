@@ -52,4 +52,5 @@ data/
 *.geojson
 *.png
 *.pdf
+*.svg
 source_data.xlsx
